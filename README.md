@@ -133,7 +133,7 @@ streamlit run 03_dashboard.py
 streamlit run 03_dashboard.py -- --data data/data_clean_887284572.csv
 ```
 
-Open `http://localhost:8501`, or use the hosted version at [gacha-gi-noviardhana.streamlit.app](https://gacha-gi-noviardhana.streamlit.app).
+Open `http://localhost:8501`, or use the hosted version at [https://history-gi-noviardhana.streamlit.app/](https://history-gi-noviardhana.streamlit.app/).
 
 ## Troubleshooting
 
