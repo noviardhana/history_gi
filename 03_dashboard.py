@@ -57,7 +57,7 @@ BANNER_COLORS = {
 HARD_PITY_5STAR = {
     "Character Event": 90,
     "Standard": 90,
-    "Weapon Event": 77,
+    "Weapon Event": 80,
     "Beginners": 20,
 }
 HARD_PITY_4STAR = {
