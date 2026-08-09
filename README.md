@@ -2,7 +2,7 @@
 
 A data pipeline that turns Genshin Impact wish (gacha) history — exported from [Paimon.moe](https://paimon.moe) — into analytics and an interactive dashboard.
 
-**Live demo:** [gacha-gi-noviardhana.streamlit.app](https://gacha-gi-noviardhana.streamlit.app)
+**Live demo:** [history-gi-noviardhana.streamlit.app](https://history-gi-noviardhana.streamlit.app/)
 
 ## Overview
 
@@ -43,6 +43,7 @@ Paimon.moe export (JSON)
 ├── 03_dashboard.py
 ├── requirements.txt
 ├── runtime.txt
+├── .github/workflows/       # CML pipeline (see Automation below)
 ├── data/
 │   ├── paimon-moe-local-data.json   # user-provided export
 │   ├── char_full.json               # generated (step 00)
@@ -86,7 +87,7 @@ Run the pipeline in order.
 
 ### 1. Fetch rarity lookup
 
-The Paimon.moe export only contains item IDs, timestamps, type, and pity — no names or rarity. This step pulls a reference table from Paimon.moe's GitHub source into `data/char_full.json` and `data/weapon_full.json`. Requires internet access to `raw.githubusercontent.com`. Re-run to refresh after new character/weapon releases.
+The Paimon.moe export only contains item IDs, timestamps, type, and pity — no names or rarity. This step pulls a reference table from Paimon.moe's GitHub source into `data/char_full.json` and `data/weapon_full.json`. Requires internet access to `raw.githubusercontent.com`. Re-run to refresh after new character/weapon releases (it always overwrites the two files).
 
 ```bash
 python3 00_fetch_rarity_lookup.py
@@ -94,7 +95,7 @@ python3 00_fetch_rarity_lookup.py
 
 ### 2. Preprocess
 
-Merges the raw export with the rarity lookup into one tidy table (one row per pull).
+Merges the raw export with the rarity lookup into one tidy table (one row per pull). The Paimon.moe export already contains your full wish history, so re-running this after updating `paimon-moe-local-data.json` regenerates `data_clean.csv` from scratch with the latest complete history — it doesn't need to be run incrementally.
 
 ```bash
 python3 01_preprocessing.py                 # all accounts → data/data_clean.csv
@@ -125,7 +126,7 @@ python3 02_analytics.py --input data/data_clean_887284572.csv --outdir outputs_8
 
 ### 4. Run the dashboard
 
-An interactive Streamlit dashboard with account selection, date/banner filters, 7 insight tabs, multi-account comparison, and CSV export. Reads `data_clean.csv` directly — not part of the automated pipeline.
+An interactive Streamlit dashboard with account selection, date/banner filters, 7 insight tabs, multi-account comparison, and CSV export. Reads `data_clean.csv` directly.
 
 ```bash
 streamlit run 03_dashboard.py
@@ -133,17 +134,34 @@ streamlit run 03_dashboard.py
 streamlit run 03_dashboard.py -- --data data/data_clean_887284572.csv
 ```
 
-Open `http://localhost:8501`, or use the hosted version at [https://history-gi-noviardhana.streamlit.app/](https://history-gi-noviardhana.streamlit.app/).
+Open `http://localhost:8501`, or use the hosted version at [history-gi-noviardhana.streamlit.app](https://history-gi-noviardhana.streamlit.app/).
+
+## Automation (GitHub Actions + CML)
+
+A workflow in `.github/workflows/` runs the pipeline automatically:
+
+- **Trigger:** any push that changes `data/paimon-moe-local-data.json`, or manually via **Actions → Run workflow**.
+- **Steps:** fetch rarity lookup → verify the export file exists → run preprocessing → run analytics → smoke-test the dashboard → post a CML comment with the tables/charts → commit the regenerated `data/` and `outputs/` files back to `main`.
+- Because the bot commits back to `main`, your local branch will fall behind after each run. Always `git pull` before pushing a new export file to avoid a rejected (non-fast-forward) push.
 
 ## Troubleshooting
 
 | Issue | Fix |
 |---|---|
-| `FileNotFoundError: Lookup rarity belum ada` | Run `00_fetch_rarity_lookup.py` before `01_preprocessing.py`. |
-| `[WARN] N baris tidak punya mapping rarity` | Export contains item IDs not yet in the Paimon.moe lookup (usually a newly released character/weapon). Re-run `00_fetch_rarity_lookup.py`, then re-run preprocessing. |
+| `FileNotFoundError` for rarity lookup | Run `00_fetch_rarity_lookup.py` before `01_preprocessing.py`. |
+| `[WARN] N row(s) have no rarity mapping` | Export contains item IDs not yet in the Paimon.moe lookup (usually a newly released character/weapon). Re-run `00_fetch_rarity_lookup.py`, then re-run preprocessing. |
 | Dashboard can't find data | Ensure `data/data_clean.csv` exists (run step 1), or pass a path with `-- --data <path>`. |
 | Connection error in `00_fetch_rarity_lookup.py` | Check access to `raw.githubusercontent.com` (proxies/firewalls sometimes block it). |
 | Streamlit Cloud install error (`installer returned a non-zero exit code`) | Avoid strict version pins in `requirements.txt`; pin Python version via `runtime.txt` instead. |
+| `git push` rejected (non-fast-forward) after the CI bot ran | The bot committed to `main` after your last pull. Run `git pull --rebase origin main`, resolve any conflicts, then push again. |
+| Streamlit Cloud: "You do not have access to this app" | The app is still linked to an old repo, or the Streamlit GitHub App isn't authorized for the current repo. Re-check the app's linked repo in Streamlit Cloud settings, or grant access at `github.com/settings/installations`. |
+
+## Changelog
+
+Bug fixes applied to the pipeline scripts:
+- **`00_fetch_rarity_lookup.py`** — the name/rarity extraction window could bleed into a neighboring item when entries sat close together, silently attaching the wrong name or rarity. Now clamped to the boundary between adjacent entries.
+- **`01_preprocessing.py`** — `--list-uid` no longer requires the rarity lookup files to exist; item ID lookups are now coerced to string to avoid silent mismatches; rows with an unparseable datetime are now flagged and dropped instead of leaking into `year_month` as `"NaT"`.
+- **`02_analytics.py`** — guarded against a crash when a dataset has zero 5★ pulls; banners with no 50/50 data now show a labeled "N/A" bar instead of an unexplained gap.
 
 ## Credits
 
