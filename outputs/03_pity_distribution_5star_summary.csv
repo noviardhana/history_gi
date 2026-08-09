@@ -1,0 +1,4 @@
+banner_type,count,mean,median,min,max,std
+Character Event,51,57.82,75.0,3,84,28.14
+Standard,14,54.14,74.5,5,80,29.84
+Weapon Event,19,49.32,65.0,3,70,23.59

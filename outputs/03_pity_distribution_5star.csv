@@ -1,0 +1,85 @@
+account,banner_type,datetime,item_name,item_category,pity,win_50_50
+main,Character Event,2023-06-04 13:07:09,Yoimiya,character,76,Win
+main,Character Event,2023-06-13 18:07:51,Kaedehara Kazuha,character,15,Win
+main,Standard,2023-06-13 18:20:12,Wolf's Gravestone,weapon,77,
+main,Character Event,2023-06-25 10:14:55,Alhaitham,character,84,Win
+main,Character Event,2023-07-25 19:37:01,Dehya,character,81,Lose
+main,Character Event,2023-07-25 20:13:00,Sangonomiya Kokomi,character,43,Guaranteed
+main,Standard,2023-08-01 07:11:12,Mona,character,80,
+main,Character Event,2023-08-17 13:43:22,Diluc,character,78,Lose
+main,Character Event,2023-08-29 20:55:14,Yelan,character,74,Guaranteed
+main,Character Event,2023-09-21 11:39:39,Tighnari,character,76,Lose
+main,Character Event,2023-09-28 21:59:07,Hu Tao,character,29,Guaranteed
+main,Character Event,2023-10-12 16:15:34,Diluc,character,76,Lose
+account2,Character Event,2023-10-20 23:58:09,Jean,character,25,Lose
+main,Standard,2023-11-01 10:43:48,Lost Prayer to the Sacred Winds,weapon,76,
+main,Character Event,2023-11-08 12:09:31,Furina,character,79,Guaranteed
+main,Character Event,2023-11-08 12:10:16,Furina,character,4,Win
+main,Character Event,2023-12-18 14:10:45,Kamisato Ayato,character,74,Win
+main,Character Event,2023-12-18 15:25:12,Cyno,character,18,Win
+main,Character Event,2024-01-09 18:07:22,Raiden Shogun,character,3,Guaranteed
+main,Character Event,2024-01-09 18:07:22,Diluc,character,74,Lose
+account2,Standard,2024-01-20 06:38:12,Amos' Bow,weapon,15,
+main,Character Event,2024-02-02 06:53:22,Nahida,character,83,Win
+main,Character Event,2024-03-01 04:58:25,Yae Miko,character,79,Win
+main,Standard,2024-03-01 05:01:04,Keqing,character,80,
+main,Standard,2024-03-16 11:38:58,Qiqi,character,5,
+main,Character Event,2024-04-04 04:27:29,Neuvillette,character,78,Win
+main,Weapon Event,2024-04-10 16:54:44,Freedom-Sworn,weapon,22,Win
+main,Weapon Event,2024-04-11 05:07:34,Wolf's Gravestone,weapon,3,Lose
+main,Weapon Event,2024-04-18 07:46:46,Tome of the Eternal Flow,weapon,20,Guaranteed
+main,Character Event,2024-04-18 08:03:55,Neuvillette,character,10,Win
+main,Weapon Event,2024-06-05 11:17:32,Aquila Favonia,weapon,19,Lose
+main,Character Event,2024-06-05 11:21:29,Clorinde,character,75,Win
+main,Weapon Event,2024-06-17 04:16:21,Light of Foliar Incision,weapon,70,Guaranteed
+main,Character Event,2024-06-20 11:55:48,Tighnari,character,7,Lose
+main,Character Event,2024-07-22 20:01:22,Nilou,character,77,Guaranteed
+main,Weapon Event,2024-08-09 22:33:11,Lumidouce Elegy,weapon,68,Win
+main,Standard,2024-08-26 20:40:32,Primordial Jade Winged-Spear,weapon,74,
+main,Character Event,2024-09-01 06:11:43,Diluc,character,40,Lose
+main,Weapon Event,2024-09-18 10:08:54,Lost Prayer to the Sacred Winds,weapon,65,Lose
+account2,Character Event,2024-09-28 22:01:58,Raiden Shogun,character,78,Guaranteed
+account2,Standard,2024-09-28 22:06:39,Aquila Favonia,weapon,12,
+main,Character Event,2024-10-10 15:13:32,Xilonen,character,75,Guaranteed
+main,Weapon Event,2024-10-29 18:01:54,A Thousand Floating Dreams,weapon,66,Guaranteed
+main,Weapon Event,2024-11-16 04:43:28,Staff of Homa,weapon,63,Win
+main,Standard,2024-12-09 05:07:33,Dehya,character,76,
+main,Character Event,2024-12-10 19:40:19,Jean,character,77,Lose
+main,Character Event,2025-01-01 11:38:36,Mavuika,character,77,Guaranteed
+main,Character Event,2025-01-20 05:07:12,Citlali,character,74,Win
+main,Character Event,2025-02-04 07:29:42,Qiqi,character,58,Lose
+main,Character Event,2025-03-05 16:18:03,Furina,character,78,Guaranteed
+main,Weapon Event,2025-04-15 18:01:40,Elegy for the End,weapon,64,Win
+main,Character Event,2025-05-10 05:56:45,Escoffier,character,80,Win
+main,Standard,2025-05-10 06:32:27,Skyward Atlas,weapon,75,
+main,Weapon Event,2025-05-11 06:11:05,Verdict,weapon,65,Win
+main,Character Event,2025-06-18 15:46:32,Skirk,character,75,Win
+main,Standard,2025-07-01 05:09:56,Keqing,character,26,
+main,Weapon Event,2025-07-01 07:52:11,Skyward Spine,weapon,67,Lose
+main,Character Event,2025-08-28 09:16:24,Dehya,character,77,Lose
+account3,Character Event,2025-09-10 22:35:40,Diluc,character,7,Lose
+main,Character Event,2025-09-10 22:45:26,Lauma,character,75,Guaranteed
+main,Standard,2025-09-10 23:29:28,Skyward Harp,weapon,26,
+main,Weapon Event,2025-09-30 19:16:37,Aqua Simulacra,weapon,34,Guaranteed
+main,Character Event,2025-09-30 19:32:49,Yelan,character,24,Win
+main,Character Event,2025-10-02 09:55:35,Yelan,character,72,Win
+main,Character Event,2025-10-22 13:17:10,Nefer,character,75,Win
+main,Weapon Event,2025-11-08 04:25:55,Aquila Favonia,weapon,65,Lose
+main,Character Event,2025-11-25 05:55:14,Arlecchino,character,25,Win
+account2,Character Event,2025-12-04 05:15:33,Yumemizuki Mizuki,character,76,Lose
+main,Standard,2025-12-16 04:46:03,Yumemizuki Mizuki,character,57,
+main,Character Event,2025-12-19 06:58:42,Durin,character,78,Win
+main,Character Event,2026-01-16 05:03:47,Columbina,character,77,Win
+main,Character Event,2026-02-01 14:01:28,Diluc,character,76,Lose
+main,Character Event,2026-02-02 07:33:36,Ineffa,character,11,Guaranteed
+main,Character Event,2026-02-13 06:48:51,Tighnari,character,27,Lose
+main,Weapon Event,2026-03-17 18:14:43,Azurelight,weapon,69,Guaranteed
+main,Weapon Event,2026-03-28 04:51:00,Symphonist of Scents,weapon,33,Win
+main,Character Event,2026-04-09 19:07:22,Linnea,character,80,Guaranteed
+main,Standard,2026-05-21 06:01:36,Wolf's Gravestone,weapon,79,
+main,Character Event,2026-05-27 01:10:23,Nicole,character,76,Win
+main,Character Event,2026-05-27 04:24:54,Nicole,character,6,Win
+main,Weapon Event,2026-05-27 14:24:40,Angelos' Heptades,weapon,65,Win
+main,Weapon Event,2026-06-01 05:13:48,Athame Artis,weapon,12,Win
+main,Character Event,2026-07-03 05:58:47,Sandrone,character,57,Win
+main,Weapon Event,2026-07-10 05:16:49,Skyward Harp,weapon,67,Lose

@@ -1,0 +1,490 @@
+{
+  "aino": {
+    "name": "Aino",
+    "rarity": 4
+  },
+  "albedo": {
+    "name": "Albedo",
+    "rarity": 5
+  },
+  "alhaitham": {
+    "name": "Alhaitham",
+    "rarity": 5
+  },
+  "aloy": {
+    "name": "Aloy",
+    "rarity": 5
+  },
+  "amber": {
+    "name": "Amber",
+    "rarity": 4
+  },
+  "arataki_itto": {
+    "name": "Arataki Itto",
+    "rarity": 5
+  },
+  "arlecchino": {
+    "name": "Arlecchino",
+    "rarity": 5
+  },
+  "baizhu": {
+    "name": "Baizhu",
+    "rarity": 5
+  },
+  "barbara": {
+    "name": "Barbara",
+    "rarity": 4
+  },
+  "beidou": {
+    "name": "Beidou",
+    "rarity": 4
+  },
+  "bennett": {
+    "name": "Bennett",
+    "rarity": 4
+  },
+  "candace": {
+    "name": "Candace",
+    "rarity": 4
+  },
+  "charlotte": {
+    "name": "Charlotte",
+    "rarity": 4
+  },
+  "chasca": {
+    "name": "Chasca",
+    "rarity": 5
+  },
+  "chevreuse": {
+    "name": "Chevreuse",
+    "rarity": 4
+  },
+  "chiori": {
+    "name": "Chiori",
+    "rarity": 5
+  },
+  "chongyun": {
+    "name": "Chongyun",
+    "rarity": 4
+  },
+  "citlali": {
+    "name": "Citlali",
+    "rarity": 5
+  },
+  "clorinde": {
+    "name": "Clorinde",
+    "rarity": 5
+  },
+  "collei": {
+    "name": "Collei",
+    "rarity": 4
+  },
+  "columbina": {
+    "name": "Columbina",
+    "rarity": 5
+  },
+  "cyno": {
+    "name": "Cyno",
+    "rarity": 5
+  },
+  "dahlia": {
+    "name": "Dahlia",
+    "rarity": 4
+  },
+  "dehya": {
+    "name": "Dehya",
+    "rarity": 5
+  },
+  "diluc": {
+    "name": "Diluc",
+    "rarity": 5
+  },
+  "diona": {
+    "name": "Diona",
+    "rarity": 4
+  },
+  "dori": {
+    "name": "Dori",
+    "rarity": 4
+  },
+  "durin": {
+    "name": "Durin",
+    "rarity": 5
+  },
+  "emilie": {
+    "name": "Emilie",
+    "rarity": 5
+  },
+  "escoffier": {
+    "name": "Escoffier",
+    "rarity": 5
+  },
+  "eula": {
+    "name": "Eula",
+    "rarity": 5
+  },
+  "faruzan": {
+    "name": "Faruzan",
+    "rarity": 4
+  },
+  "fischl": {
+    "name": "Fischl",
+    "rarity": 4
+  },
+  "flins": {
+    "name": "Flins",
+    "rarity": 5
+  },
+  "freminet": {
+    "name": "Freminet",
+    "rarity": 4
+  },
+  "furina": {
+    "name": "Furina",
+    "rarity": 5
+  },
+  "gaming": {
+    "name": "Gaming",
+    "rarity": 4
+  },
+  "ganyu": {
+    "name": "Ganyu",
+    "rarity": 5
+  },
+  "gorou": {
+    "name": "Gorou",
+    "rarity": 4
+  },
+  "hu_tao": {
+    "name": "Hu Tao",
+    "rarity": 5
+  },
+  "iansan": {
+    "name": "Iansan",
+    "rarity": 4
+  },
+  "ifa": {
+    "name": "Ifa",
+    "rarity": 4
+  },
+  "illuga": {
+    "name": "Illuga",
+    "rarity": 4
+  },
+  "ineffa": {
+    "name": "Ineffa",
+    "rarity": 5
+  },
+  "jahoda": {
+    "name": "Jahoda",
+    "rarity": 4
+  },
+  "jean": {
+    "name": "Jean",
+    "rarity": 5
+  },
+  "kachina": {
+    "name": "Kachina",
+    "rarity": 4
+  },
+  "kaedehara_kazuha": {
+    "name": "Kaedehara Kazuha",
+    "rarity": 5
+  },
+  "kaeya": {
+    "name": "Kaeya",
+    "rarity": 4
+  },
+  "kamisato_ayaka": {
+    "name": "Kamisato Ayaka",
+    "rarity": 5
+  },
+  "kamisato_ayato": {
+    "name": "Kamisato Ayato",
+    "rarity": 5
+  },
+  "kaveh": {
+    "name": "Kaveh",
+    "rarity": 4
+  },
+  "keqing": {
+    "name": "Keqing",
+    "rarity": 5
+  },
+  "kinich": {
+    "name": "Kinich",
+    "rarity": 5
+  },
+  "kirara": {
+    "name": "Kirara",
+    "rarity": 4
+  },
+  "klee": {
+    "name": "Klee",
+    "rarity": 5
+  },
+  "kujou_sara": {
+    "name": "Kujou Sara",
+    "rarity": 4
+  },
+  "kuki_shinobu": {
+    "name": "Kuki Shinobu",
+    "rarity": 4
+  },
+  "lan_yan": {
+    "name": "Lan Yan",
+    "rarity": 4
+  },
+  "lauma": {
+    "name": "Lauma",
+    "rarity": 5
+  },
+  "layla": {
+    "name": "Layla",
+    "rarity": 4
+  },
+  "linnea": {
+    "name": "Linnea",
+    "rarity": 5
+  },
+  "lisa": {
+    "name": "Lisa",
+    "rarity": 4
+  },
+  "lohen": {
+    "name": "Lohen",
+    "rarity": 5
+  },
+  "lynette": {
+    "name": "Lynette",
+    "rarity": 4
+  },
+  "lyney": {
+    "name": "Lyney",
+    "rarity": 5
+  },
+  "mavuika": {
+    "name": "Mavuika",
+    "rarity": 5
+  },
+  "mika": {
+    "name": "Mika",
+    "rarity": 4
+  },
+  "mona": {
+    "name": "Mona",
+    "rarity": 5
+  },
+  "mualani": {
+    "name": "Mualani",
+    "rarity": 5
+  },
+  "nahida": {
+    "name": "Nahida",
+    "rarity": 5
+  },
+  "navia": {
+    "name": "Navia",
+    "rarity": 5
+  },
+  "nefer": {
+    "name": "Nefer",
+    "rarity": 5
+  },
+  "neuvillette": {
+    "name": "Neuvillette",
+    "rarity": 5
+  },
+  "nicole": {
+    "name": "Nicole",
+    "rarity": 5
+  },
+  "nilou": {
+    "name": "Nilou",
+    "rarity": 5
+  },
+  "ningguang": {
+    "name": "Ningguang",
+    "rarity": 4
+  },
+  "noelle": {
+    "name": "Noelle",
+    "rarity": 4
+  },
+  "ororon": {
+    "name": "Ororon",
+    "rarity": 4
+  },
+  "prune": {
+    "name": "Prune",
+    "rarity": 4
+  },
+  "qiqi": {
+    "name": "Qiqi",
+    "rarity": 5
+  },
+  "raiden_shogun": {
+    "name": "Raiden Shogun",
+    "rarity": 5
+  },
+  "razor": {
+    "name": "Razor",
+    "rarity": 4
+  },
+  "rosaria": {
+    "name": "Rosaria",
+    "rarity": 4
+  },
+  "sandrone": {
+    "name": "Sandrone",
+    "rarity": 5
+  },
+  "sangonomiya_kokomi": {
+    "name": "Sangonomiya Kokomi",
+    "rarity": 5
+  },
+  "sayu": {
+    "name": "Sayu",
+    "rarity": 4
+  },
+  "sethos": {
+    "name": "Sethos",
+    "rarity": 4
+  },
+  "shenhe": {
+    "name": "Shenhe",
+    "rarity": 5
+  },
+  "shikanoin_heizou": {
+    "name": "Shikanoin Heizou",
+    "rarity": 4
+  },
+  "sigewinne": {
+    "name": "Sigewinne",
+    "rarity": 5
+  },
+  "skirk": {
+    "name": "Skirk",
+    "rarity": 5
+  },
+  "sucrose": {
+    "name": "Sucrose",
+    "rarity": 4
+  },
+  "tartaglia": {
+    "name": "Tartaglia",
+    "rarity": 5
+  },
+  "thoma": {
+    "name": "Thoma",
+    "rarity": 4
+  },
+  "tighnari": {
+    "name": "Tighnari",
+    "rarity": 5
+  },
+  "traveler_anemo": {
+    "name": "Traveler (Anemo)",
+    "rarity": 5
+  },
+  "traveler_geo": {
+    "name": "Traveler (Geo)",
+    "rarity": 5
+  },
+  "traveler_electro": {
+    "name": "Traveler (Electro)",
+    "rarity": 5
+  },
+  "traveler_dendro": {
+    "name": "Traveler (Dendro)",
+    "rarity": 5
+  },
+  "traveler_hydro": {
+    "name": "Traveler (Hydro)",
+    "rarity": 5
+  },
+  "traveler_pyro": {
+    "name": "Traveler (Pyro)",
+    "rarity": 5
+  },
+  "varesa": {
+    "name": "Varesa",
+    "rarity": 5
+  },
+  "varka": {
+    "name": "Varka",
+    "rarity": 5
+  },
+  "venti": {
+    "name": "Venti",
+    "rarity": 5
+  },
+  "wanderer": {
+    "name": "Wanderer",
+    "rarity": 5
+  },
+  "wriothesley": {
+    "name": "Wriothesley",
+    "rarity": 5
+  },
+  "xiangling": {
+    "name": "Xiangling",
+    "rarity": 4
+  },
+  "xianyun": {
+    "name": "Xianyun",
+    "rarity": 5
+  },
+  "xiao": {
+    "name": "Xiao",
+    "rarity": 5
+  },
+  "xilonen": {
+    "name": "Xilonen",
+    "rarity": 5
+  },
+  "xingqiu": {
+    "name": "Xingqiu",
+    "rarity": 4
+  },
+  "xinyan": {
+    "name": "Xinyan",
+    "rarity": 4
+  },
+  "yae_miko": {
+    "name": "Yae Miko",
+    "rarity": 5
+  },
+  "yanfei": {
+    "name": "Yanfei",
+    "rarity": 4
+  },
+  "yaoyao": {
+    "name": "Yaoyao",
+    "rarity": 4
+  },
+  "yelan": {
+    "name": "Yelan",
+    "rarity": 5
+  },
+  "yoimiya": {
+    "name": "Yoimiya",
+    "rarity": 5
+  },
+  "yumemizuki_mizuki": {
+    "name": "Yumemizuki Mizuki",
+    "rarity": 5
+  },
+  "yun_jin": {
+    "name": "Yun Jin",
+    "rarity": 4
+  },
+  "zhongli": {
+    "name": "Zhongli",
+    "rarity": 5
+  },
+  "zibai": {
+    "name": "Zibai",
+    "rarity": 5
+  }
+}
