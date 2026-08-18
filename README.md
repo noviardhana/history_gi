@@ -33,6 +33,7 @@ Paimon.moe export (JSON)
 - Composite luck score (60% pity efficiency + 40% win rate)
 - Latest 10 5★ characters/weapons obtained per banner, with Win/Lose/Guaranteed status
 - Interactive dashboard with account/date/banner filters, multi-account comparison, and CSV export
+- Professional dark "Teyvat-night" UI: hero header, pity progress meters, color-coded Win/Lose/Guaranteed badges, and a consistent chart style across all 8 tabs
 
 ## Project Structure
 
@@ -133,6 +134,8 @@ An interactive Streamlit dashboard with account selection, date/banner filters, 
 
 The 8th tab, **Latest 5★**, lists the 10 most recent 5★ characters/weapons obtained on each banner (newest first), each row showing date, name, type, pity, and Win/Lose/Guaranteed result, plus a per-banner Win/Lose/Guaranteed count and win rate summary.
 
+The dashboard uses a custom visual theme on top of Streamlit's dark mode: a hero header showing account context, banner pity cards with progress bars toward hard pity, color-coded Win/Lose/Guaranteed badges, and shared chart styling (typography, spacing, gridlines) across every tab.
+
 ```bash
 streamlit run 03_dashboard.py
 # or for a specific account:
@@ -165,6 +168,7 @@ A workflow in `.github/workflows/` runs the pipeline automatically:
 
 Feature additions:
 - **`03_dashboard.py`** — added an 8th tab, "🆕 Latest 5★", showing the 10 most recent 5★ characters/weapons per banner with date, pity, and Win/Lose/Guaranteed result, plus a per-banner Win/Lose/Guaranteed count and win rate.
+- **`03_dashboard.py`** — redesigned the UI: hero header with account context chips, pity meters with progress bars, color-coded Win/Lose/Guaranteed badges, a color-coded results table on the Latest 5★ tab, and a shared chart style (typography, margins, gridlines, hover) applied across all 8 tabs.
 
 Bug fixes applied to the pipeline scripts:
 - **`00_fetch_rarity_lookup.py`** — the name/rarity extraction window could bleed into a neighboring item when entries sat close together, silently attaching the wrong name or rarity. Now clamped to the boundary between adjacent entries.

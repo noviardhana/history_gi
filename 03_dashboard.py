@@ -1,15 +1,15 @@
 """
 03_dashboard.py
 ================
-Interactive Streamlit Dashboard for Genshin Impact gacha analytics.
+Interactive Streamlit dashboard for Genshin Impact gacha analytics.
 
-Loads data_clean.csv from 01_preprocessing.py and renders an interactive
-dashboard styled after paimon.moe's dark "Wish Counter" page:
-    - Account selector (main account is selected by default)
-    - Banner pity cards (Character Event / Weapon Event / Standard) with
-      Lifetime Pulls, 5-star pity, and 4-star pity, gold/purple accents
-    - 8 insights across tabs
-    - Interactive Plotly charts on a matching dark theme
+Loads data_clean.csv from 01_preprocessing.py and renders a dashboard with
+a Teyvat-night visual identity (deep navy + gold/purple wish accents):
+    - Hero header with account context chips
+    - Banner pity meters (Character Event / Weapon Event / Standard) with
+      Lifetime Pulls, 5-star pity, and 4-star pity, plus a progress bar
+      toward hard pity for each
+    - 8 insights across tabs, on a shared chart design system
     - Account comparison mode (compare 2+ accounts side-by-side)
     - Data download (CSV export)
 
@@ -36,24 +36,42 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 
 # ----------------------------------------------------------------------------
-# Palette (matches the paimon.moe dark navy reference)
+# Design tokens
 # ----------------------------------------------------------------------------
-BG_MAIN = "#12122b"
-BG_CARD = "#1e1e42"
-BG_CARD_ALT = "#232349"
-TEXT_PRIMARY = "#f1f1fa"
-TEXT_SECONDARY = "#9a9ac2"
-ACCENT_GOLD = "#f2a641"
-ACCENT_PURPLE = "#b57edc"
+BG_MAIN = "#0f0f26"
+BG_CARD = "#1b1b3a"
+BG_CARD_ALT = "#22224a"
+BG_ELEVATED = "#26264f"
+TEXT_PRIMARY = "#f4f3fb"
+TEXT_SECONDARY = "#9d9dc9"
+TEXT_MUTED = "#6f6f9c"
 DIVIDER = "rgba(255,255,255,0.08)"
 
-RARITY_COLORS = {3: "#5b8fd6", 4: ACCENT_PURPLE, 5: ACCENT_GOLD}
+ACCENT_GOLD = "#f2a641"
+ACCENT_PURPLE = "#b57edc"
+ACCENT_BLUE = "#5b8fd6"
+ACCENT_TEAL = "#57c7b8"
+SUCCESS = "#6bbf7b"
+DANGER = "#e2707a"
+
+FONT_DISPLAY = "'Manrope', sans-serif"
+FONT_BODY = "'Inter', sans-serif"
+FONT_MONO = "'JetBrains Mono', monospace"
+
+RARITY_COLORS = {3: ACCENT_BLUE, 4: ACCENT_PURPLE, 5: ACCENT_GOLD}
 BANNER_COLORS = {
     "Character Event": ACCENT_GOLD,
-    "Weapon Event": "#5b8fd6",
+    "Weapon Event": ACCENT_BLUE,
     "Standard": "#6bbf7b",
     "Beginners": "#c9576a",
 }
+BANNER_ICONS = {
+    "Character Event": "🎯",
+    "Weapon Event": "⚔️",
+    "Standard": "🌌",
+    "Beginners": "🔰",
+}
+RESULT_COLORS = {"Win": SUCCESS, "Lose": DANGER, "Guaranteed": ACCENT_TEAL}
 HARD_PITY_5STAR = {
     "Character Event": 90,
     "Standard": 90,
@@ -69,13 +87,13 @@ HARD_PITY_4STAR = {
 
 # Canonical banner ordering used across every chart/table in the dashboard
 BANNER_ORDER = ["Character Event", "Weapon Event", "Standard", "Beginners"]
-# Banners shown as pity cards, in the requested order
+# Banners shown as pity meters, in the requested order
 PITY_CARD_BANNERS = ["Character Event", "Weapon Event", "Standard"]
 
 # Page config
 st.set_page_config(
-    page_title="Genshin Gacha Dashboard",
-    page_icon="🎮",
+    page_title="Genshin Gacha Analytics",
+    page_icon="✨",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -88,19 +106,99 @@ _dark_template.layout.font.color = TEXT_PRIMARY
 pio.templates["paimon_dark"] = _dark_template
 pio.templates.default = "paimon_dark"
 
-# Custom CSS layered on top of the dark theme (see .streamlit/config.toml)
-# for the paimon.moe-style pity cards and metric styling.
+# ----------------------------------------------------------------------------
+# Global styling
+# ----------------------------------------------------------------------------
 st.markdown(
     f"""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: {FONT_BODY};
+    }}
+    h1, h2, h3, h4, h5,
+    .mona-hero-title, .mona-section-title, .mona-side-title {{
+        font-family: {FONT_DISPLAY} !important;
+        letter-spacing: -0.01em;
+    }}
+
+    /* ---- Hero masthead -------------------------------------------------- */
+    .mona-hero {{
+        background: linear-gradient(135deg, {BG_CARD} 0%, {BG_ELEVATED} 100%);
+        border-left: 4px solid {ACCENT_GOLD};
+        border-radius: 16px;
+        padding: 22px 26px;
+        margin-bottom: 18px;
+    }}
+    .mona-hero-eyebrow {{
+        font-family: {FONT_MONO};
+        font-size: 0.72em;
+        letter-spacing: 0.14em;
+        color: {ACCENT_GOLD};
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }}
+    .mona-hero-title {{
+        font-size: 1.9em;
+        font-weight: 800;
+        color: {TEXT_PRIMARY};
+        line-height: 1.15;
+    }}
+    .mona-hero-subtitle {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.92em;
+        margin-top: 4px;
+    }}
+    .mona-hero-chips {{
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }}
+    .mona-chip {{
+        display: inline-block;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid {DIVIDER};
+        color: {TEXT_SECONDARY};
+        font-family: {FONT_MONO};
+        font-size: 0.76em;
+        padding: 4px 12px;
+        border-radius: 999px;
+    }}
+
+    /* ---- Section headers ------------------------------------------------ */
+    .mona-section {{
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        border-bottom: 1px solid {DIVIDER};
+        padding-bottom: 10px;
+        margin: 6px 0 18px 0;
+    }}
+    .mona-section-icon {{ font-size: 1.25em; }}
+    .mona-section-title {{
+        font-size: 1.2em;
+        font-weight: 800;
+        color: {TEXT_PRIMARY};
+    }}
+    .mona-section-subtitle {{
+        color: {TEXT_MUTED};
+        font-size: 0.82em;
+        margin-left: 2px;
+    }}
+
+    /* ---- Pity meter cards ------------------------------------------------ */
     .paimon-card {{
         background-color: {BG_CARD};
+        border: 1px solid {DIVIDER};
         border-radius: 14px;
         padding: 20px 22px;
         margin-bottom: 12px;
     }}
     .paimon-card-title {{
-        font-size: 1.1em;
+        font-family: {FONT_DISPLAY};
+        font-size: 1.05em;
         font-weight: 700;
         color: {TEXT_PRIMARY};
         margin-bottom: 14px;
@@ -108,45 +206,199 @@ st.markdown(
     .paimon-card-row {{
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        padding: 10px 0;
+        align-items: flex-end;
+        padding: 8px 0 2px 0;
     }}
     .paimon-card-divider {{
         border-top: 1px solid {DIVIDER};
+        margin-top: 12px;
     }}
     .paimon-card-label {{
         color: {TEXT_SECONDARY};
-        font-size: 0.85em;
+        font-size: 0.83em;
         line-height: 1.4;
     }}
     .paimon-card-sublabel {{
-        color: {TEXT_SECONDARY};
+        color: {TEXT_MUTED};
         font-size: 0.85em;
-        opacity: 0.75;
     }}
     .paimon-card-value {{
-        font-size: 1.6em;
+        font-family: {FONT_MONO};
+        font-size: 1.5em;
         font-weight: 700;
         color: {TEXT_PRIMARY};
     }}
     .paimon-gold {{ color: {ACCENT_GOLD}; }}
     .paimon-purple {{ color: {ACCENT_PURPLE}; }}
 
+    .pity-bar-track {{
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        overflow: hidden;
+        margin-top: 8px;
+    }}
+    .pity-bar-fill {{
+        height: 100%;
+        border-radius: 999px;
+    }}
+
+    /* ---- Result badges ---------------------------------------------------- */
+    .mona-badge {{
+        display: inline-flex;
+        align-items: center;
+        font-family: {FONT_MONO};
+        font-size: 0.76em;
+        font-weight: 700;
+        padding: 3px 11px;
+        border-radius: 999px;
+        margin-right: 6px;
+    }}
+
+    /* ---- Metric cards ------------------------------------------------------ */
     [data-testid="stMetric"] {{
         background-color: {BG_CARD_ALT};
+        border: 1px solid {DIVIDER};
         border-radius: 12px;
         padding: 14px 16px;
     }}
     [data-testid="stMetricValue"] {{
+        font-family: {FONT_MONO};
         color: {ACCENT_GOLD};
     }}
     [data-testid="stMetricLabel"] {{
         color: {TEXT_SECONDARY};
     }}
+
+    /* ---- Tabs ---------------------------------------------------------- */
+    [data-baseweb="tab-list"] {{
+        gap: 4px;
+        border-bottom: 1px solid {DIVIDER};
+    }}
+    [data-baseweb="tab"] {{
+        font-family: {FONT_DISPLAY};
+        font-weight: 700;
+        font-size: 0.92em;
+        color: {TEXT_SECONDARY};
+    }}
+    [data-baseweb="tab"][aria-selected="true"] {{
+        color: {ACCENT_GOLD};
+    }}
+    [data-baseweb="tab-highlight"] {{
+        background-color: {ACCENT_GOLD} !important;
+    }}
+
+    /* ---- Dataframes & sidebar -------------------------------------------- */
+    [data-testid="stDataFrame"] {{
+        border: 1px solid {DIVIDER};
+        border-radius: 10px;
+        overflow: hidden;
+    }}
+    .mona-side-title {{
+        font-size: 1.15em;
+        font-weight: 800;
+        color: {TEXT_PRIMARY};
+    }}
+    .mona-side-caption {{
+        color: {TEXT_MUTED};
+        font-size: 0.78em;
+        margin-bottom: 6px;
+    }}
+    .mona-side-section {{
+        font-family: {FONT_DISPLAY};
+        font-weight: 700;
+        font-size: 0.82em;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: {TEXT_SECONDARY};
+        margin: 4px 0 6px 0;
+    }}
+    .mona-footer {{
+        text-align: center;
+        color: {TEXT_MUTED};
+        font-size: 0.78em;
+        padding: 18px 0 6px 0;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+# ============================================================================
+# Small presentation helpers
+# ============================================================================
+def section_header(icon: str, title: str, subtitle: str = ""):
+    """Render a consistent section header used at the top of every insight."""
+    sub_html = f'<span class="mona-section-subtitle">{subtitle}</span>' if subtitle else ""
+    st.markdown(
+        f"""
+        <div class="mona-section">
+            <span class="mona-section-icon">{icon}</span>
+            <span class="mona-section-title">{title}</span>
+            {sub_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def badge(text: str, color: str) -> str:
+    """Return an inline HTML pill badge in the given accent color."""
+    return (
+        f'<span class="mona-badge" style="background:{color}26; color:{color}; '
+        f'border:1px solid {color}55;">{text}</span>'
+    )
+
+
+def apply_layout(fig, title, xaxis_title=None, yaxis_title=None, height=380, legend=False, yaxis_range=None, **extra):
+    """Apply the shared chart design system to a Plotly figure: consistent
+    typography, margins, gridlines, and hover styling across every insight."""
+    yaxis_cfg = dict(title=yaxis_title, gridcolor=DIVIDER, zerolinecolor=DIVIDER)
+    if yaxis_range is not None:
+        yaxis_cfg["range"] = yaxis_range
+    fig.update_layout(
+        title=dict(text=title, font=dict(family=FONT_DISPLAY, size=15, color=TEXT_PRIMARY), x=0.01, xanchor="left"),
+        font=dict(family=FONT_BODY, color=TEXT_SECONDARY, size=12),
+        xaxis=dict(title=xaxis_title, gridcolor=DIVIDER, zerolinecolor=DIVIDER),
+        yaxis=yaxis_cfg,
+        height=height,
+        margin=dict(l=8, r=8, t=54, b=8),
+        showlegend=legend,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(0,0,0,0)"),
+        hoverlabel=dict(bgcolor=BG_CARD_ALT, bordercolor=DIVIDER, font=dict(family=FONT_BODY, color=TEXT_PRIMARY)),
+        **extra,
+    )
+    return fig
+
+
+def style_result_column(df: pd.DataFrame, column: str = "Result") -> "pd.io.formats.style.Styler":
+    """Color-code a Win/Lose/Guaranteed column in a dataframe for display."""
+
+    def _style(val):
+        color = RESULT_COLORS.get(val)
+        if color:
+            return f"background-color:{color}22; color:{color}; font-weight:700;"
+        return f"color:{TEXT_MUTED};"
+
+    styler = df.style
+    style_fn = getattr(styler, "map", None) or styler.applymap
+    return style_fn(_style, subset=[column])
+
+
+def render_hero(title: str, subtitle: str, chips: list):
+    chips_html = "".join(f'<span class="mona-chip">{c}</span>' for c in chips)
+    st.markdown(
+        f"""
+        <div class="mona-hero">
+            <div class="mona-hero-eyebrow">Genshin Impact · Wish Analytics</div>
+            <div class="mona-hero-title">{title}</div>
+            <div class="mona-hero-subtitle">{subtitle}</div>
+            <div class="mona-hero-chips">{chips_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def order_banners(items) -> list:
@@ -226,8 +478,9 @@ def calculate_win_rate(df: pd.DataFrame) -> float:
 
 
 def render_pity_cards(df: pd.DataFrame):
-    """Render paimon.moe-style banner cards: Lifetime Pulls, 5-star pity,
-    4-star pity, for Character Event / Weapon Event / Standard."""
+    """Render banner pity meters: Lifetime Pulls, 5-star pity, 4-star pity,
+    each with a progress bar toward hard pity, for Character Event /
+    Weapon Event / Standard."""
     cols = st.columns(len(PITY_CARD_BANNERS))
     for col, banner in zip(cols, PITY_CARD_BANNERS):
         banner_df = df[df["banner_type"] == banner]
@@ -238,12 +491,16 @@ def render_pity_cards(df: pd.DataFrame):
         hard_4 = HARD_PITY_4STAR.get(banner, 10)
         pity_5_display = pity_5 if pity_5 is not None else "-"
         pity_4_display = pity_4 if pity_4 is not None else "-"
+        pct_5 = min(100, round((pity_5 or 0) / hard_5 * 100)) if pity_5 is not None else 0
+        pct_4 = min(100, round((pity_4 or 0) / hard_4 * 100)) if pity_4 is not None else 0
+        icon = BANNER_ICONS.get(banner, "🔮")
+        top_color = BANNER_COLORS.get(banner, ACCENT_GOLD)
 
         with col:
             st.markdown(
                 f"""
-                <div class="paimon-card">
-                    <div class="paimon-card-title">{banner}</div>
+                <div class="paimon-card" style="border-top:3px solid {top_color};">
+                    <div class="paimon-card-title">{icon} {banner}</div>
                     <div class="paimon-card-row">
                         <div class="paimon-card-label">Lifetime Pulls</div>
                         <div class="paimon-card-value">{lifetime_pulls:,}</div>
@@ -255,12 +512,18 @@ def render_pity_cards(df: pd.DataFrame):
                         </div>
                         <div class="paimon-card-value paimon-gold">{pity_5_display}</div>
                     </div>
+                    <div class="pity-bar-track">
+                        <div class="pity-bar-fill" style="width:{pct_5}%; background:{ACCENT_GOLD};"></div>
+                    </div>
                     <div class="paimon-card-divider"></div>
                     <div class="paimon-card-row">
                         <div class="paimon-card-label">4★ Pity<br>
                             <span class="paimon-card-sublabel">Guaranteed at {hard_4}</span>
                         </div>
                         <div class="paimon-card-value paimon-purple">{pity_4_display}</div>
+                    </div>
+                    <div class="pity-bar-track">
+                        <div class="pity-bar-fill" style="width:{pct_4}%; background:{ACCENT_PURPLE};"></div>
                     </div>
                 </div>
                 """,
@@ -299,7 +562,7 @@ def display_metrics_row(df: pd.DataFrame):
 # INSIGHT 1: Total Pulls & Progress
 # ============================================================================
 def insight_1_total_pull(df: pd.DataFrame):
-    st.markdown("### 📊 Total Pulls & Account Progress", unsafe_allow_html=True)
+    section_header("📊", "Total Pulls & Account Progress", "Rarity breakdown and AR/WL progress per account")
 
     summary = (
         df.groupby("account")
@@ -320,64 +583,31 @@ def insight_1_total_pull(df: pd.DataFrame):
 
     with col1:
         fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=summary["account"],
-                y=summary["pull_3star"],
-                name="3★",
-                marker_color=RARITY_COLORS[3],
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=summary["account"],
-                y=summary["pull_4star"],
-                name="4★",
-                marker_color=RARITY_COLORS[4],
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=summary["account"],
-                y=summary["pull_5star"],
-                name="5★",
-                marker_color=RARITY_COLORS[5],
-            )
-        )
-        fig.update_layout(
-            barmode="stack",
+        fig.add_trace(go.Bar(x=summary["account"], y=summary["pull_3star"], name="3★", marker_color=RARITY_COLORS[3]))
+        fig.add_trace(go.Bar(x=summary["account"], y=summary["pull_4star"], name="4★", marker_color=RARITY_COLORS[4]))
+        fig.add_trace(go.Bar(x=summary["account"], y=summary["pull_5star"], name="5★", marker_color=RARITY_COLORS[5]))
+        apply_layout(
+            fig,
             title="Total Pulls per Account (rarity breakdown)",
             xaxis_title="Account",
             yaxis_title="Number of Pulls",
+            barmode="stack",
             hovermode="x unified",
-            height=400,
+            legend=True,
         )
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=summary["account"],
-                y=summary["adventure_rank"],
-                name="Adventure Rank",
-                marker_color=ACCENT_GOLD,
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=summary["account"],
-                y=summary["world_level"],
-                name="World Level",
-                marker_color="#5b8fd6",
-            )
-        )
-        fig.update_layout(
-            barmode="group",
+        fig.add_trace(go.Bar(x=summary["account"], y=summary["adventure_rank"], name="Adventure Rank", marker_color=ACCENT_GOLD))
+        fig.add_trace(go.Bar(x=summary["account"], y=summary["world_level"], name="World Level", marker_color=ACCENT_BLUE))
+        apply_layout(
+            fig,
             title="Account Progress (AR & WL)",
             xaxis_title="Account",
             yaxis_title="Level",
-            height=400,
+            barmode="group",
+            legend=True,
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -389,7 +619,7 @@ def insight_1_total_pull(df: pd.DataFrame):
 # INSIGHT 2: Wish Timeline
 # ============================================================================
 def insight_2_timeline(df: pd.DataFrame):
-    st.markdown("### 📈 Wish Timeline", unsafe_allow_html=True)
+    section_header("📈", "Wish Timeline", "Monthly pull volume, broken down by banner")
 
     timeline = (
         df.groupby(["year_month", "banner_type"], observed=True)
@@ -404,20 +634,17 @@ def insight_2_timeline(df: pd.DataFrame):
     fig = go.Figure()
     for banner in pivot.columns:
         fig.add_trace(
-            go.Bar(
-                x=pivot.index,
-                y=pivot[banner],
-                name=banner,
-                marker_color=BANNER_COLORS.get(banner, "#999999"),
-            )
+            go.Bar(x=pivot.index, y=pivot[banner], name=banner, marker_color=BANNER_COLORS.get(banner, "#999999"))
         )
-    fig.update_layout(
-        barmode="stack",
+    apply_layout(
+        fig,
         title="Monthly Wish Timeline (banner breakdown)",
         xaxis_title="Month",
         yaxis_title="Number of Pulls",
+        height=460,
+        barmode="stack",
         hovermode="x unified",
-        height=500,
+        legend=True,
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -429,7 +656,7 @@ def insight_2_timeline(df: pd.DataFrame):
 # INSIGHT 3: 5★ Pity Distribution
 # ============================================================================
 def insight_3_pity_distribution(df: pd.DataFrame):
-    st.markdown("### 🍀 5★ Pity Distribution", unsafe_allow_html=True)
+    section_header("🍀", "5★ Pity Distribution", "How many pulls each 5★ took to land, per banner")
 
     five_star = df[df["is_5star"]].copy()
     if len(five_star) == 0:
@@ -447,26 +674,16 @@ def insight_3_pity_distribution(df: pd.DataFrame):
             if len(vals) > 0:
                 fig = go.Figure()
                 fig.add_trace(
-                    go.Histogram(
-                        x=vals,
-                        nbinsx=20,
-                        marker_color=BANNER_COLORS.get(banner, "#999999"),
-                        name=banner,
-                    )
+                    go.Histogram(x=vals, nbinsx=20, marker_color=BANNER_COLORS.get(banner, "#999999"), name=banner)
                 )
                 fig.add_vline(
                     x=vals.mean(),
                     line_dash="dash",
                     line_color=TEXT_PRIMARY,
                     annotation_text=f"Average: {vals.mean():.1f}",
+                    annotation_font_color=TEXT_SECONDARY,
                 )
-                fig.update_layout(
-                    title=banner,
-                    xaxis_title="Pity",
-                    yaxis_title="Frequency",
-                    height=400,
-                    showlegend=False,
-                )
+                apply_layout(fig, title=banner, xaxis_title="Pity", yaxis_title="Frequency")
                 st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("📋 Data Details"):
@@ -480,7 +697,7 @@ def insight_3_pity_distribution(df: pd.DataFrame):
 # INSIGHT 4: 50-50 Win/Lose
 # ============================================================================
 def insight_4_win_lose(df: pd.DataFrame):
-    st.markdown("### 🏆 50-50 Win/Lose", unsafe_allow_html=True)
+    section_header("🏆", "50-50 Win/Lose", "Featured-rate outcomes by banner and rarity")
 
     rate_df = df[df["win_50_50"].notna()].copy()
     if len(rate_df) == 0:
@@ -496,25 +713,21 @@ def insight_4_win_lose(df: pd.DataFrame):
             .reset_index(name="count")
         )
         pivot = summary.pivot_table(
-            index=["banner_type", "rarity"],
-            columns="win_50_50",
-            values="count",
-            fill_value=0,
-            observed=True,
+            index=["banner_type", "rarity"], columns="win_50_50", values="count", fill_value=0, observed=True
         )
         pivot = pivot.reindex(columns=[c for c in ["Win", "Lose", "Guaranteed"] if c in pivot.columns])
 
         labels = [f"{b}<br>{r}★" for b, r in pivot.index]
         fig = go.Figure()
-        colors_50_50 = {"Win": "#6bbf7b", "Lose": "#c9576a", "Guaranteed": ACCENT_GOLD}
-        for col in pivot.columns:
-            fig.add_trace(go.Bar(x=labels, y=pivot[col], name=col, marker_color=colors_50_50.get(col)))
-        fig.update_layout(
-            barmode="stack",
+        for col_name in pivot.columns:
+            fig.add_trace(go.Bar(x=labels, y=pivot[col_name], name=col_name, marker_color=RESULT_COLORS.get(col_name)))
+        apply_layout(
+            fig,
             title="Win / Lose / Guaranteed Breakdown",
             xaxis_title="Banner & Rarity",
             yaxis_title="Number of Pulls",
-            height=400,
+            barmode="stack",
+            legend=True,
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -527,14 +740,17 @@ def insight_4_win_lose(df: pd.DataFrame):
         )
         labels_wr = [f"{b}<br>{r}★" for b, r in zip(win_rate["banner_type"], win_rate["rarity"])]
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=labels_wr, y=win_rate["win_rate_pct"], marker_color="#6bbf7b"))
-        fig.add_hline(y=50, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text="50% (Baseline)")
-        fig.update_layout(
+        fig.add_trace(go.Bar(x=labels_wr, y=win_rate["win_rate_pct"], marker_color=SUCCESS))
+        fig.add_hline(
+            y=50, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text="50% (Baseline)",
+            annotation_font_color=TEXT_SECONDARY,
+        )
+        apply_layout(
+            fig,
             title="50-50 Win Rate (Win vs Lose)",
             xaxis_title="Banner & Rarity",
             yaxis_title="Win Rate (%)",
-            height=400,
-            yaxis=dict(range=[0, 100]),
+            yaxis_range=[0, 100],
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -546,7 +762,7 @@ def insight_4_win_lose(df: pd.DataFrame):
 # INSIGHT 5: Top Character & Weapon
 # ============================================================================
 def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
-    st.markdown("### 👑 Top Character & Weapon", unsafe_allow_html=True)
+    section_header("👑", "Top Character & Weapon", "Most frequently obtained 4★ and 5★ items")
 
     col1, col2 = st.columns(2)
 
@@ -562,20 +778,9 @@ def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
             )
             colors = [RARITY_COLORS.get(r, "#999999") for r in top_char["rarity"]]
             fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    y=top_char["item_name"],
-                    x=top_char["times_obtained"],
-                    orientation="h",
-                    marker_color=colors,
-                )
-            )
-            fig.update_layout(
-                title="Top Characters (4★ & 5★)",
-                xaxis_title="Times Obtained",
-                yaxis_title="Character",
-                height=500,
-            )
+            fig.add_trace(go.Bar(y=top_char["item_name"], x=top_char["times_obtained"], orientation="h", marker_color=colors))
+            apply_layout(fig, title="Top Characters (4★ & 5★)", xaxis_title="Times Obtained", yaxis_title="Character", height=480)
+            fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No 4★ or 5★ characters found.")
@@ -592,20 +797,9 @@ def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
             )
             colors = [RARITY_COLORS.get(r, "#999999") for r in top_weapon["rarity"]]
             fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    y=top_weapon["item_name"],
-                    x=top_weapon["times_obtained"],
-                    orientation="h",
-                    marker_color=colors,
-                )
-            )
-            fig.update_layout(
-                title="Top Weapons (4★ & 5★)",
-                xaxis_title="Times Obtained",
-                yaxis_title="Weapon",
-                height=500,
-            )
+            fig.add_trace(go.Bar(y=top_weapon["item_name"], x=top_weapon["times_obtained"], orientation="h", marker_color=colors))
+            apply_layout(fig, title="Top Weapons (4★ & 5★)", xaxis_title="Times Obtained", yaxis_title="Weapon", height=480)
+            fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No 4★ or 5★ weapons found.")
@@ -615,15 +809,11 @@ def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
 # INSIGHT 6: Banner Performance
 # ============================================================================
 def insight_6_banner_performance(df: pd.DataFrame):
-    st.markdown("### 📍 Banner Performance", unsafe_allow_html=True)
+    section_header("📍", "Banner Performance", "Volume, efficiency, and win rate compared across banners")
 
     perf = (
         df.groupby("banner_type", observed=True)
-        .agg(
-            total_pull=("item_id", "count"),
-            pull_5star=("is_5star", "sum"),
-            pull_4star=("is_4star", "sum"),
-        )
+        .agg(total_pull=("item_id", "count"), pull_5star=("is_5star", "sum"), pull_4star=("is_4star", "sum"))
         .reset_index()
     )
     perf["pull_per_5star"] = (perf["total_pull"] / perf["pull_5star"].replace(0, float("nan"))).round(1)
@@ -633,31 +823,14 @@ def insight_6_banner_performance(df: pd.DataFrame):
 
     with col1:
         fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=perf["banner_type"],
-                y=perf["total_pull"],
-                marker_color=[BANNER_COLORS.get(b, "#999") for b in perf["banner_type"]],
-            )
-        )
-        fig.update_layout(title="Total Pulls per Banner", xaxis_title="Banner", yaxis_title="Number of Pulls", height=400)
+        fig.add_trace(go.Bar(x=perf["banner_type"], y=perf["total_pull"], marker_color=[BANNER_COLORS.get(b, "#999") for b in perf["banner_type"]]))
+        apply_layout(fig, title="Total Pulls per Banner", xaxis_title="Banner", yaxis_title="Number of Pulls")
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=perf["banner_type"],
-                y=perf["pull_per_5star"],
-                marker_color=[BANNER_COLORS.get(b, "#999") for b in perf["banner_type"]],
-            )
-        )
-        fig.update_layout(
-            title="Pulls per 5★ (lower = more efficient)",
-            xaxis_title="Banner",
-            yaxis_title="Pulls per 5★",
-            height=400,
-        )
+        fig.add_trace(go.Bar(x=perf["banner_type"], y=perf["pull_per_5star"], marker_color=[BANNER_COLORS.get(b, "#999") for b in perf["banner_type"]]))
+        apply_layout(fig, title="Pulls per 5★ (lower = more efficient)", xaxis_title="Banner", yaxis_title="Pulls per 5★")
         st.plotly_chart(fig, use_container_width=True)
 
     with col3:
@@ -669,21 +842,12 @@ def insight_6_banner_performance(df: pd.DataFrame):
                 .reset_index(name="win_rate_pct")
             )
             fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    x=win_rate["banner_type"],
-                    y=win_rate["win_rate_pct"],
-                    marker_color="#6bbf7b",
-                )
+            fig.add_trace(go.Bar(x=win_rate["banner_type"], y=win_rate["win_rate_pct"], marker_color=SUCCESS))
+            fig.add_hline(
+                y=50, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text="Baseline 50%",
+                annotation_font_color=TEXT_SECONDARY,
             )
-            fig.add_hline(y=50, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text="Baseline 50%")
-            fig.update_layout(
-                title="50-50 Win Rate per Banner",
-                xaxis_title="Banner",
-                yaxis_title="Win Rate (%)",
-                height=400,
-                yaxis=dict(range=[0, 100]),
-            )
+            apply_layout(fig, title="50-50 Win Rate per Banner", xaxis_title="Banner", yaxis_title="Win Rate (%)", yaxis_range=[0, 100])
             st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("📋 Data Details"):
@@ -694,7 +858,7 @@ def insight_6_banner_performance(df: pd.DataFrame):
 # INSIGHT 7: Luck Score
 # ============================================================================
 def insight_7_luck_score(df: pd.DataFrame):
-    st.markdown("### ✨ Luck Score", unsafe_allow_html=True)
+    section_header("✨", "Luck Score", "A composite score blending pity efficiency and 50-50 win rate")
 
     five_star = df[df["is_5star"]].copy()
     if len(five_star) == 0:
@@ -744,34 +908,35 @@ def insight_7_luck_score(df: pd.DataFrame):
 
     with col1:
         fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=luck_df["account"],
-                y=luck_df["luck_score"],
-                marker_color=ACCENT_GOLD,
-            )
+        fig.add_trace(go.Bar(x=luck_df["account"], y=luck_df["luck_score"], marker_color=ACCENT_GOLD))
+        fig.add_hline(
+            y=50, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text="Baseline 50 (Neutral)",
+            annotation_font_color=TEXT_SECONDARY,
         )
-        fig.add_hline(y=50, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text="Baseline 50 (Neutral)")
-        fig.update_layout(
-            title="Luck Score per Account",
-            xaxis_title="Account",
-            yaxis_title="Luck Score (0-100+)",
-            height=400,
-        )
+        apply_layout(fig, title="Luck Score per Account", xaxis_title="Account", yaxis_title="Luck Score (0-100+)")
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        st.markdown("""
-        #### 📊 Luck Score Formula
-        - **60%** = Pity Efficiency (lower pity = higher score)
-        - **40%** = 50-50 Win Rate (higher win rate = higher score)
-        - **Baseline 50** = Neutral (statistical average result)
-
-        #### 🎯 Interpretation
-        - **> 70**: Very lucky! 🍀
-        - **50-70**: Above average
-        - **< 50**: Below average (but statistics balance out long-term)
-        """)
+        st.markdown(
+            f"""
+            <div class="paimon-card">
+                <div class="paimon-card-title">📊 Luck Score Formula</div>
+                <p style="color:{TEXT_SECONDARY}; font-size:0.88em; line-height:1.7; margin:0;">
+                    <b style="color:{TEXT_PRIMARY}">60%</b> Pity Efficiency (lower pity = higher score)<br>
+                    <b style="color:{TEXT_PRIMARY}">40%</b> 50-50 Win Rate (higher win rate = higher score)<br>
+                    <b style="color:{TEXT_PRIMARY}">Baseline 50</b> = neutral, statistical average result
+                </p>
+                <div class="paimon-card-divider"></div>
+                <div class="paimon-card-title" style="margin-top:12px;">🎯 Interpretation</div>
+                <p style="color:{TEXT_SECONDARY}; font-size:0.88em; line-height:1.7; margin:0;">
+                    {badge("&gt; 70 Very lucky 🍀", SUCCESS)}<br><br>
+                    {badge("50–70 Above average", ACCENT_TEAL)}<br><br>
+                    {badge("&lt; 50 Below average", DANGER)}
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         with st.expander("📋 Data Details"):
             st.dataframe(luck_df, use_container_width=True, hide_index=True)
@@ -781,11 +946,7 @@ def insight_7_luck_score(df: pd.DataFrame):
 # INSIGHT 8: Latest 5★ Obtained per Banner
 # ============================================================================
 def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
-    st.markdown("### 🆕 Latest 5★ Characters & Weapons", unsafe_allow_html=True)
-    st.caption(
-        "The most recent 5★ pulls per banner, newest first, with the win/lose/guarantee "
-        "status recorded for each pull."
-    )
+    section_header("🆕", "Latest 5★ Characters & Weapons", "The 10 most recent 5★ pulls per banner, newest first")
 
     five_star = df[df["is_5star"]].copy()
     if len(five_star) == 0:
@@ -795,12 +956,37 @@ def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
     banners = order_banners(five_star["banner_type"].unique())
 
     for banner in banners:
-        banner_df = five_star[five_star["banner_type"] == banner].sort_values(
-            "datetime", ascending=False
+        banner_df = five_star[five_star["banner_type"] == banner].sort_values("datetime", ascending=False)
+        if banner_df.empty:
+            continue
+
+        win_count = int((banner_df["win_50_50"] == "Win").sum())
+        lose_count = int((banner_df["win_50_50"] == "Lose").sum())
+        guaranteed_count = int((banner_df["win_50_50"] == "Guaranteed").sum())
+        decisive_count = win_count + lose_count
+        win_rate = (win_count / decisive_count * 100) if decisive_count > 0 else None
+        win_rate_text = f"{win_rate:.0f}% win rate" if win_rate is not None else "no decisive 50-50s"
+
+        icon = BANNER_ICONS.get(banner, "🔮")
+        top_color = BANNER_COLORS.get(banner, ACCENT_GOLD)
+
+        st.markdown(
+            f"""
+            <div class="mona-section" style="border-bottom:1px solid {DIVIDER}; margin-top:22px;">
+                <span class="mona-section-icon">{icon}</span>
+                <span class="mona-section-title">{banner}</span>
+                <span class="mona-section-subtitle">
+                    {badge(f"{win_count} Win", SUCCESS)}
+                    {badge(f"{lose_count} Lose", DANGER)}
+                    {badge(f"{guaranteed_count} Guaranteed", ACCENT_TEAL)}
+                    · {win_rate_text}
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        latest = banner_df.head(top_n)[
-            ["datetime", "item_name", "item_category", "pity", "win_50_50"]
-        ].rename(
+
+        latest = banner_df.head(top_n)[["datetime", "item_name", "item_category", "pity", "win_50_50"]].rename(
             columns={
                 "datetime": "Date",
                 "item_name": "Name",
@@ -809,28 +995,18 @@ def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
                 "win_50_50": "Result",
             }
         )
-        latest["Result"] = latest["Result"].fillna("N/A")
+        latest["Date"] = latest["Date"].dt.strftime("%Y-%m-%d %H:%M")
         latest["Type"] = latest["Type"].str.capitalize()
+        latest["Result"] = latest["Result"].fillna("N/A")
 
-        st.markdown(f"#### {banner}")
-        if latest.empty:
-            st.info(f"No 5★ pulls recorded for {banner}.")
-            continue
-
-        win_count = (banner_df["win_50_50"] == "Win").sum()
-        lose_count = (banner_df["win_50_50"] == "Lose").sum()
-        guaranteed_count = (banner_df["win_50_50"] == "Guaranteed").sum()
-        decisive_count = win_count + lose_count
-        win_rate = (win_count / decisive_count * 100) if decisive_count > 0 else None
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Win", int(win_count))
-        c2.metric("Lose", int(lose_count))
-        c3.metric("Guaranteed", int(guaranteed_count))
-        c4.metric("Win Rate (Win vs Lose)", f"{win_rate:.0f}%" if win_rate is not None else "N/A")
-
-        st.dataframe(latest, use_container_width=True, hide_index=True)
-        st.markdown("")
+        st.dataframe(
+            style_result_column(latest, "Result"),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Pity": st.column_config.NumberColumn("Pity", format="%d"),
+            },
+        )
 
 
 # ============================================================================
@@ -851,20 +1027,30 @@ def main():
     # Load data
     df = load_data(data_path)
 
-    # Sidebar: Account selector (main account first / selected by default)
-    st.sidebar.title("⚙️ Filters")
+    # ---- Sidebar: branding + account selector ----
+    st.sidebar.markdown(
+        '<div class="mona-side-title">✨ Gacha Analytics</div>'
+        '<div class="mona-side-caption">Paimon.moe wish history explorer</div>',
+        unsafe_allow_html=True,
+    )
+    st.sidebar.caption(f"📦 {len(df):,} pulls across {df['account'].nunique()} account(s) loaded")
+    st.sidebar.divider()
+
+    st.sidebar.markdown('<div class="mona-side-section">👤 Account</div>', unsafe_allow_html=True)
     all_accounts = get_account_order(df)
 
     mode = st.sidebar.radio(
         "Display Mode",
         options=["Single Account", "Compare Accounts", "All Accounts"],
         index=0,
+        label_visibility="collapsed",
     )
 
     if mode == "Single Account":
         selected_account = st.sidebar.selectbox("Select Account", all_accounts, index=0)
         display_df = df[df["account"] == selected_account].copy()
-        title = f"🎮 {selected_account} Account"
+        title = f"{selected_account}"
+        subtitle = "Single-account wish history and pity tracking"
     elif mode == "Compare Accounts":
         selected_accounts = st.sidebar.multiselect(
             "Select Accounts to Compare",
@@ -875,22 +1061,31 @@ def main():
             st.warning("Please select at least 1 account to compare.")
             return
         display_df = df[df["account"].isin(selected_accounts)].copy()
-        title = f"🎮 Comparing: {', '.join(selected_accounts)}"
+        title = "Comparing Accounts"
+        subtitle = ", ".join(selected_accounts)
     else:  # All Accounts
         display_df = df.copy()
-        title = "🎮 All Accounts"
+        title = "All Accounts"
+        subtitle = f"Combined view across all {df['account'].nunique()} accounts"
 
-    # Header
-    st.title(title)
-    st.divider()
+    # ---- Hero ----
+    hero_chips = [
+        f"⭐ {int(display_df['is_5star'].sum()):,} five-star",
+        f"🔮 {len(display_df):,} pulls",
+        f"🏆 {calculate_win_rate(display_df):.0f}% 50-50 win rate",
+    ]
+    render_hero(title, subtitle, hero_chips)
 
-    # Banner pity cards (paimon.moe-style), then account overview KPIs
+    # Banner pity meters, then account overview KPIs
     render_pity_cards(display_df)
     st.markdown("")
     display_metrics_row(display_df)
     st.divider()
 
-    # Sidebar: Date filter (guarded against single-day datasets)
+    # ---- Sidebar: date & banner filters ----
+    st.sidebar.divider()
+    st.sidebar.markdown('<div class="mona-side-section">🔎 Filters</div>', unsafe_allow_html=True)
+
     min_date = display_df["datetime"].min().date()
     max_date = display_df["datetime"].max().date()
     if min_date == max_date:
@@ -953,16 +1148,21 @@ def main():
     with tab8:
         insight_8_latest_5star(display_df)
 
-    # Data download
-    st.divider()
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📥 Download Data")
+    # ---- Sidebar: export ----
+    st.sidebar.divider()
+    st.sidebar.markdown('<div class="mona-side-section">📥 Export</div>', unsafe_allow_html=True)
     csv = display_df.to_csv(index=False)
     st.sidebar.download_button(
         label="📥 Download Filtered Data (CSV)",
         data=csv,
         file_name=f"gacha_data_{date_range[0]}_{date_range[1]}.csv",
         mime="text/csv",
+    )
+
+    st.markdown(
+        '<div class="mona-footer">Genshin Impact Gacha Analytics · data sourced from your Paimon.moe export · '
+        'independent, unaffiliated with HoYoverse</div>',
+        unsafe_allow_html=True,
     )
 
 
