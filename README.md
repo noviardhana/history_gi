@@ -31,6 +31,7 @@ Paimon.moe export (JSON)
 - Top characters and weapons obtained
 - Banner performance comparison (pulls-per-5★, win rate)
 - Composite luck score (60% pity efficiency + 40% win rate)
+- Latest 10 5★ characters/weapons obtained per banner, with Win/Lose/Guaranteed status
 - Interactive dashboard with account/date/banner filters, multi-account comparison, and CSV export
 
 ## Project Structure
@@ -119,6 +120,8 @@ Produces 7 insights, each as a paired CSV + PNG in `outputs/`:
 | 6 | Banner performance | `06_banner_performance.*` |
 | 7 | Luck score | `07_luck_score.*` |
 
+The dashboard (step 4) adds an 8th, dashboard-only insight — Latest 5★ per banner — that is not part of `02_analytics.py`'s CSV/PNG output.
+
 ```bash
 python3 02_analytics.py
 python3 02_analytics.py --input data/data_clean_887284572.csv --outdir outputs_887284572
@@ -126,7 +129,9 @@ python3 02_analytics.py --input data/data_clean_887284572.csv --outdir outputs_8
 
 ### 4. Run the dashboard
 
-An interactive Streamlit dashboard with account selection, date/banner filters, 7 insight tabs, multi-account comparison, and CSV export. Reads `data_clean.csv` directly.
+An interactive Streamlit dashboard with account selection, date/banner filters, 8 insight tabs, multi-account comparison, and CSV export. Reads `data_clean.csv` directly.
+
+The 8th tab, **Latest 5★**, lists the 10 most recent 5★ characters/weapons obtained on each banner (newest first), each row showing date, name, type, pity, and Win/Lose/Guaranteed result, plus a per-banner Win/Lose/Guaranteed count and win rate summary.
 
 ```bash
 streamlit run 03_dashboard.py
@@ -157,6 +162,9 @@ A workflow in `.github/workflows/` runs the pipeline automatically:
 | Streamlit Cloud: "You do not have access to this app" | The app is still linked to an old repo, or the Streamlit GitHub App isn't authorized for the current repo. Re-check the app's linked repo in Streamlit Cloud settings, or grant access at `github.com/settings/installations`. |
 
 ## Changelog
+
+Feature additions:
+- **`03_dashboard.py`** — added an 8th tab, "🆕 Latest 5★", showing the 10 most recent 5★ characters/weapons per banner with date, pity, and Win/Lose/Guaranteed result, plus a per-banner Win/Lose/Guaranteed count and win rate.
 
 Bug fixes applied to the pipeline scripts:
 - **`00_fetch_rarity_lookup.py`** — the name/rarity extraction window could bleed into a neighboring item when entries sat close together, silently attaching the wrong name or rarity. Now clamped to the boundary between adjacent entries.

@@ -8,7 +8,7 @@ dashboard styled after paimon.moe's dark "Wish Counter" page:
     - Account selector (main account is selected by default)
     - Banner pity cards (Character Event / Weapon Event / Standard) with
       Lifetime Pulls, 5-star pity, and 4-star pity, gold/purple accents
-    - 7 insights across tabs
+    - 8 insights across tabs
     - Interactive Plotly charts on a matching dark theme
     - Account comparison mode (compare 2+ accounts side-by-side)
     - Data download (CSV export)
@@ -778,6 +778,62 @@ def insight_7_luck_score(df: pd.DataFrame):
 
 
 # ============================================================================
+# INSIGHT 8: Latest 5★ Obtained per Banner
+# ============================================================================
+def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
+    st.markdown("### 🆕 Latest 5★ Characters & Weapons", unsafe_allow_html=True)
+    st.caption(
+        "The most recent 5★ pulls per banner, newest first, with the win/lose/guarantee "
+        "status recorded for each pull."
+    )
+
+    five_star = df[df["is_5star"]].copy()
+    if len(five_star) == 0:
+        st.warning("No 5★ pulls found for this account.")
+        return
+
+    banners = order_banners(five_star["banner_type"].unique())
+
+    for banner in banners:
+        banner_df = five_star[five_star["banner_type"] == banner].sort_values(
+            "datetime", ascending=False
+        )
+        latest = banner_df.head(top_n)[
+            ["datetime", "item_name", "item_category", "pity", "win_50_50"]
+        ].rename(
+            columns={
+                "datetime": "Date",
+                "item_name": "Name",
+                "item_category": "Type",
+                "pity": "Pity",
+                "win_50_50": "Result",
+            }
+        )
+        latest["Result"] = latest["Result"].fillna("N/A")
+        latest["Type"] = latest["Type"].str.capitalize()
+
+        st.markdown(f"#### {banner}")
+        if latest.empty:
+            st.info(f"No 5★ pulls recorded for {banner}.")
+            continue
+
+        win_count = (banner_df["win_50_50"] == "Win").sum()
+        lose_count = (banner_df["win_50_50"] == "Lose").sum()
+        guaranteed_count = (banner_df["win_50_50"] == "Guaranteed").sum()
+        decisive_count = win_count + lose_count
+        win_rate = (win_count / decisive_count * 100) if decisive_count > 0 else None
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Win", int(win_count))
+        c2.metric("Lose", int(lose_count))
+        c3.metric("Guaranteed", int(guaranteed_count))
+        c4.metric("Win Rate (Win vs Lose)", f"{win_rate:.0f}%" if win_rate is not None else "N/A")
+
+        st.dataframe(latest, use_container_width=True, hide_index=True)
+        st.markdown("")
+
+
+# ============================================================================
 # MAIN APP
 # ============================================================================
 def main():
@@ -860,8 +916,17 @@ def main():
     display_df = display_df[display_df["banner_type"].isin(banner_filter)]
 
     # Tabs for insights
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
-        ["📊 Total Pulls", "📈 Timeline", "🍀 Pity 5★", "🏆 50-50", "👑 Top Items", "📍 Banner", "✨ Luck Score"]
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+        [
+            "📊 Total Pulls",
+            "📈 Timeline",
+            "🍀 Pity 5★",
+            "🏆 50-50",
+            "👑 Top Items",
+            "📍 Banner",
+            "✨ Luck Score",
+            "🆕 Latest 5★",
+        ]
     )
 
     with tab1:
@@ -884,6 +949,9 @@ def main():
 
     with tab7:
         insight_7_luck_score(display_df)
+
+    with tab8:
+        insight_8_latest_5star(display_df)
 
     # Data download
     st.divider()
