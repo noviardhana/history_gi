@@ -3133,6 +3133,101 @@ main,887284572,60,9,Character Event,301,2763,2026-07-03 05:58:47,sandrone,Sandro
 main,887284572,60,9,Character Event,301,2764,2026-07-30 01:33:29,skyrider_sword,Skyrider Sword,weapon,3,1,,,,2026-07-30,2026-07,False,False,True
 main,887284572,60,9,Character Event,301,2765,2026-07-30 05:22:58,sacrificial_fragments,Sacrificial Fragments,weapon,4,10,0.0,Lose,,2026-07-30,2026-07,False,True,False
 main,887284572,60,9,Character Event,301,2766,2026-07-31 04:02:06,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-07-31,2026-07,False,False,True
+main,887284572,60,9,Character Event,301,2767,2026-08-12 11:31:08,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2768,2026-08-12 11:31:08,skyrider_sword,Skyrider Sword,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2769,2026-08-12 11:31:08,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2770,2026-08-12 11:31:08,cool_steel,Cool Steel,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2771,2026-08-12 11:31:08,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2772,2026-08-12 11:31:08,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2773,2026-08-12 11:31:08,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2774,2026-08-12 11:31:08,sucrose,Sucrose,character,4,9,2.0,Guaranteed,,2026-08-12,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2775,2026-08-12 11:31:08,thrilling_tales_of_dragon_slayers,Thrilling Tales of Dragon Slayers,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2776,2026-08-12 11:31:08,alyosha,Alyosha,character,4,2,1.0,Win,,2026-08-12,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2777,2026-08-12 11:31:20,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2778,2026-08-12 11:31:20,slingshot,Slingshot,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2779,2026-08-12 11:31:20,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2780,2026-08-12 11:31:20,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2781,2026-08-12 11:31:20,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2782,2026-08-12 11:31:20,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2783,2026-08-12 11:31:20,slingshot,Slingshot,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2784,2026-08-12 11:31:20,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2785,2026-08-12 11:31:20,sucrose,Sucrose,character,4,9,1.0,Win,,2026-08-12,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2786,2026-08-12 11:31:20,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2787,2026-08-12 11:31:39,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2788,2026-08-12 11:31:46,skyrider_sword,Skyrider Sword,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2789,2026-08-12 11:33:45,debate_club,Debate Club,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2790,2026-08-12 11:33:53,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2791,2026-08-12 11:33:58,skyrider_sword,Skyrider Sword,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2792,2026-08-12 11:34:03,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2793,2026-08-12 11:34:09,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2794,2026-08-12 11:34:16,lynette,Lynette,character,4,9,1.0,Win,,2026-08-12,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2795,2026-08-12 11:34:23,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2796,2026-08-12 11:34:39,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2797,2026-08-12 11:34:45,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2798,2026-08-12 11:34:49,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2799,2026-08-12 11:35:06,slingshot,Slingshot,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2800,2026-08-12 11:35:12,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2801,2026-08-12 12:07:55,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2802,2026-08-13 04:55:12,thrilling_tales_of_dragon_slayers,Thrilling Tales of Dragon Slayers,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2803,2026-08-13 04:55:53,sacrificial_fragments,Sacrificial Fragments,weapon,4,9,0.0,Lose,,2026-08-13,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2804,2026-08-13 05:12:50,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2805,2026-08-13 05:34:59,slingshot,Slingshot,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2806,2026-08-13 05:56:33,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2807,2026-08-13 11:31:13,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2808,2026-08-13 11:34:24,debate_club,Debate Club,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2809,2026-08-13 12:18:34,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2810,2026-08-14 05:35:54,cool_steel,Cool Steel,weapon,3,1,,,,2026-08-14,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2811,2026-08-14 05:56:07,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-14,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2812,2026-08-15 04:22:20,sucrose,Sucrose,character,4,9,2.0,Guaranteed,,2026-08-15,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2813,2026-08-15 04:22:27,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2814,2026-08-15 04:22:33,debate_club,Debate Club,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2815,2026-08-15 04:22:38,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2816,2026-08-15 04:22:44,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2817,2026-08-15 04:22:59,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2818,2026-08-15 05:06:00,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2819,2026-08-15 08:37:57,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2820,2026-08-15 11:04:17,debate_club,Debate Club,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2821,2026-08-15 11:07:19,alyosha,Alyosha,character,4,9,1.0,Win,,2026-08-15,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2822,2026-08-15 11:23:23,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2823,2026-08-15 12:39:42,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-15,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2824,2026-08-16 06:41:06,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2825,2026-08-16 06:41:12,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2826,2026-08-16 06:41:17,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2827,2026-08-16 06:41:22,thrilling_tales_of_dragon_slayers,Thrilling Tales of Dragon Slayers,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2828,2026-08-16 06:41:28,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2829,2026-08-16 06:41:34,cool_steel,Cool Steel,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2830,2026-08-16 06:41:39,the_flute,The Flute,weapon,4,9,0.0,Lose,,2026-08-16,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2831,2026-08-16 06:41:53,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2832,2026-08-16 07:06:51,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2833,2026-08-16 07:37:00,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2834,2026-08-16 08:34:20,bloodtainted_greatsword,Bloodtainted Greatsword,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2835,2026-08-16 11:04:24,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2836,2026-08-16 11:04:33,thrilling_tales_of_dragon_slayers,Thrilling Tales of Dragon Slayers,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2837,2026-08-16 21:56:22,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2838,2026-08-16 22:47:29,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2839,2026-08-16 23:07:51,sucrose,Sucrose,character,4,9,2.0,Guaranteed,,2026-08-16,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2840,2026-08-16 23:08:09,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2841,2026-08-16 23:38:39,debate_club,Debate Club,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2842,2026-08-17 00:44:09,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2843,2026-08-17 04:41:33,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2844,2026-08-17 08:55:08,jean,Jean,character,5,81,0.0,Lose,,2026-08-17,2026-08,True,False,False
+main,887284572,60,9,Character Event,301,2845,2026-08-17 09:07:54,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2846,2026-08-17 09:08:00,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2847,2026-08-17 09:28:47,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2848,2026-08-18 04:53:55,black_tassel,Black Tassel,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2849,2026-08-18 06:15:57,eye_of_perception,Eye of Perception,weapon,4,10,0.0,Lose,,2026-08-18,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2850,2026-08-18 06:16:19,sucrose,Sucrose,character,4,1,2.0,Guaranteed,,2026-08-18,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2851,2026-08-18 06:16:35,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2852,2026-08-18 09:38:59,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2853,2026-08-18 10:13:35,cool_steel,Cool Steel,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2854,2026-08-18 10:57:47,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2855,2026-08-18 14:35:39,sharpshooters_oath,Sharpshooter's Oath,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2856,2026-08-18 14:56:53,bloodtainted_greatsword,Bloodtainted Greatsword,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2857,2026-08-18 15:22:36,bloodtainted_greatsword,Bloodtainted Greatsword,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2858,2026-08-18 16:36:44,debate_club,Debate Club,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2859,2026-08-18 16:41:48,lynette,Lynette,character,4,9,1.0,Win,,2026-08-18,2026-08,False,True,False
+main,887284572,60,9,Character Event,301,2860,2026-08-18 16:42:07,slingshot,Slingshot,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
+main,887284572,60,9,Character Event,301,2861,2026-08-18 18:33:34,bloodtainted_greatsword,Bloodtainted Greatsword,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
 main,887284572,60,9,Standard,,1,2023-05-26 05:43:22,emerald_orb,Emerald Orb,weapon,3,1,,,True,2023-05-26,2023-05,False,False,True
 main,887284572,60,9,Standard,,2,2023-05-26 05:43:35,skyrider_sword,Skyrider Sword,weapon,3,1,,,True,2023-05-26,2023-05,False,False,True
 main,887284572,60,9,Standard,,3,2023-05-26 05:43:47,bloodtainted_greatsword,Bloodtainted Greatsword,weapon,3,1,,,True,2023-05-26,2023-05,False,False,True
@@ -3903,6 +3998,16 @@ main,887284572,60,9,Standard,200,767,2026-08-01 05:11:29,bloodtainted_greatsword
 main,887284572,60,9,Standard,200,768,2026-08-01 05:11:34,thrilling_tales_of_dragon_slayers,Thrilling Tales of Dragon Slayers,weapon,3,1,,,,2026-08-01,2026-08,False,False,True
 main,887284572,60,9,Standard,200,769,2026-08-01 05:11:37,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-01,2026-08,False,False,True
 main,887284572,60,9,Standard,200,770,2026-08-01 05:11:42,slingshot,Slingshot,weapon,3,1,,,,2026-08-01,2026-08,False,False,True
+main,887284572,60,9,Standard,200,771,2026-08-12 11:52:10,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-12,2026-08,False,False,True
+main,887284572,60,9,Standard,200,772,2026-08-13 10:50:20,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Standard,200,773,2026-08-13 12:14:39,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-13,2026-08,False,False,True
+main,887284572,60,9,Standard,200,774,2026-08-16 08:36:50,the_stringless,The Stringless,weapon,4,10,,,,2026-08-16,2026-08,False,True,False
+main,887284572,60,9,Standard,200,775,2026-08-16 11:04:41,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Standard,200,776,2026-08-16 11:04:47,magic_guide,Magic Guide,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Standard,200,777,2026-08-16 23:08:21,emerald_orb,Emerald Orb,weapon,3,1,,,,2026-08-16,2026-08,False,False,True
+main,887284572,60,9,Standard,200,778,2026-08-17 00:46:32,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Standard,200,779,2026-08-17 00:46:38,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,,2026-08-17,2026-08,False,False,True
+main,887284572,60,9,Standard,200,780,2026-08-18 15:22:44,raven_bow,Raven Bow,weapon,3,1,,,,2026-08-18,2026-08,False,False,True
 main,887284572,60,9,Weapon Event,,1,2023-09-03 01:39:26,ferrous_shadow,Ferrous Shadow,weapon,3,1,,,True,2023-09-03,2023-09,False,False,True
 main,887284572,60,9,Weapon Event,,2,2023-09-03 01:39:36,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,True,2023-09-03,2023-09,False,False,True
 main,887284572,60,9,Weapon Event,,3,2023-09-03 01:39:45,harbinger_of_dawn,Harbinger of Dawn,weapon,3,1,,,True,2023-09-03,2023-09,False,False,True

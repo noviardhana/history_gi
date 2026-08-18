@@ -15,6 +15,10 @@
     "name": "Aloy",
     "rarity": 5
   },
+  "alyosha": {
+    "name": "Alyosha",
+    "rarity": 4
+  },
   "amber": {
     "name": "Amber",
     "rarity": 4
@@ -310,6 +314,10 @@
   "noelle": {
     "name": "Noelle",
     "rarity": 4
+  },
+  "odette": {
+    "name": "Odette",
+    "rarity": 5
   },
   "ororon": {
     "name": "Ororon",

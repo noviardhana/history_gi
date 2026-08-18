@@ -922,5 +922,77 @@
   "a_teaspoon_of_transcendence": {
     "name": "A Teaspoon of Transcendence",
     "rarity": 5
+  },
+  "blackmarrow_lantern": {
+    "name": "Blackmarrow Lantern",
+    "rarity": 4
+  },
+  "blade_of_atonement": {
+    "name": "Blade of Atonement",
+    "rarity": 4
+  },
+  "clash_of_kings": {
+    "name": "Clash of Kings",
+    "rarity": 4
+  },
+  "echoes_of_the_heart": {
+    "name": "Echoes of the Heart",
+    "rarity": 4
+  },
+  "covenant_of_frost_and_snow": {
+    "name": "Covenant of Frost and Snow",
+    "rarity": 4
+  },
+  "heretics_molten_blade": {
+    "name": "Heretic's Molten Blade",
+    "rarity": 4
+  },
+  "jade_vista": {
+    "name": "Jade Vista",
+    "rarity": 4
+  },
+  "master_key": {
+    "name": "Master Key",
+    "rarity": 4
+  },
+  "emberwell": {
+    "name": "Emberwell",
+    "rarity": 4
+  },
+  "exaiphanes_blade": {
+    "name": "Exaiphanes Blade",
+    "rarity": 5
+  },
+  "forged_by_the_golden_melody": {
+    "name": "Forged by the Golden Melody",
+    "rarity": 4
+  },
+  "frostbreath": {
+    "name": "Frostbreath",
+    "rarity": 4
+  },
+  "serenitys_call": {
+    "name": "Serenity's Call",
+    "rarity": 4
+  },
+  "prospectors_shovel": {
+    "name": "Prospector's Shovel",
+    "rarity": 4
+  },
+  "snare_hook": {
+    "name": "Snare Hook",
+    "rarity": 4
+  },
+  "song_of_the_vigil": {
+    "name": "Song of the Vigil",
+    "rarity": 4
+  },
+  "whitelake_frostfeather": {
+    "name": "Whitelake Frostfeather",
+    "rarity": 5
+  },
+  "sword_of_narzissenkreuz": {
+    "name": "Sword of Narzissenkreuz",
+    "rarity": 4
   }
 }
