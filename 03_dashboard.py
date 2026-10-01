@@ -636,6 +636,21 @@ def insight_2_timeline(df: pd.DataFrame):
         fig.add_trace(
             go.Bar(x=pivot.index, y=pivot[banner], name=banner, marker_color=BANNER_COLORS.get(banner, "#999999"))
         )
+    # Total pulls per month (all banners) shown above each stacked bar
+    monthly_total = pivot.sum(axis=1)
+    fig.add_trace(
+        go.Scatter(
+            x=monthly_total.index,
+            y=monthly_total.values,
+            mode="text",
+            text=[f"{int(v):,}" for v in monthly_total.values],
+            textposition="top center",
+            textfont=dict(color=TEXT_PRIMARY, size=12),
+            showlegend=False,
+            hoverinfo="skip",
+            cliponaxis=False,
+        )
+    )
     apply_layout(
         fig,
         title="Monthly Wish Timeline (banner breakdown)",
@@ -646,6 +661,7 @@ def insight_2_timeline(df: pd.DataFrame):
         hovermode="x unified",
         legend=True,
     )
+    fig.update_yaxes(range=[0, monthly_total.max() * 1.15])
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("📋 Data Details"):
