@@ -994,5 +994,29 @@
   "sword_of_narzissenkreuz": {
     "name": "Sword of Narzissenkreuz",
     "rarity": 4
+  },
+  "beyond_the_chrysalis": {
+    "name": "Beyond the Chrysalis",
+    "rarity": 5
+  },
+  "breezeborne_refrain": {
+    "name": "Breezeborne Refrain",
+    "rarity": 4
+  },
+  "hymn_of_the_maelstrom": {
+    "name": "Hymn of the Maelstrom",
+    "rarity": 5
+  },
+  "new_bough": {
+    "name": "New Bough",
+    "rarity": 4
+  },
+  "silver_light": {
+    "name": "Silver Light",
+    "rarity": 4
+  },
+  "winters_heavy_heart": {
+    "name": "Winter's Heavy Heart",
+    "rarity": 4
   }
 }
