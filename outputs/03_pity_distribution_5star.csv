@@ -17,8 +17,8 @@ main,Character Event,2023-11-08 12:09:31,Furina,character,79,Guaranteed
 main,Character Event,2023-11-08 12:10:16,Furina,character,4,Win
 main,Character Event,2023-12-18 14:10:45,Kamisato Ayato,character,74,Win
 main,Character Event,2023-12-18 15:25:12,Cyno,character,18,Win
-main,Character Event,2024-01-09 18:07:22,Raiden Shogun,character,3,Guaranteed
 main,Character Event,2024-01-09 18:07:22,Diluc,character,74,Lose
+main,Character Event,2024-01-09 18:07:22,Raiden Shogun,character,3,Guaranteed
 account2,Standard,2024-01-20 06:38:12,Amos' Bow,weapon,15,
 main,Character Event,2024-02-02 06:53:22,Nahida,character,83,Win
 main,Character Event,2024-03-01 04:58:25,Yae Miko,character,79,Win
@@ -87,3 +87,5 @@ main,Character Event,2026-08-17 08:55:08,Jean,character,81,Lose
 main,Character Event,2026-08-25 04:07:28,Odette,character,33,Guaranteed
 main,Character Event,2026-09-28 04:15:58,Keqing,character,81,Lose
 main,Character Event,2026-10-01 05:17:55,Vodyanitsa,character,32,Guaranteed
+main,Standard,2026-10-02 02:16:10,Dehya,character,78,
+main,Weapon Event,2026-10-05 06:15:41,Beyond the Chrysalis,weapon,59,Guaranteed

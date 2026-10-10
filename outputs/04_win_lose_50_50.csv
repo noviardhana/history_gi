@@ -5,9 +5,9 @@ Character Event,4,Win,151
 Character Event,5,Guaranteed,15
 Character Event,5,Lose,17
 Character Event,5,Win,23
-Weapon Event,4,Guaranteed,30
-Weapon Event,4,Lose,31
-Weapon Event,4,Win,84
-Weapon Event,5,Guaranteed,5
+Weapon Event,4,Guaranteed,32
+Weapon Event,4,Lose,32
+Weapon Event,4,Win,87
+Weapon Event,5,Guaranteed,6
 Weapon Event,5,Lose,6
 Weapon Event,5,Win,8
