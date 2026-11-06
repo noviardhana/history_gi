@@ -1359,13 +1359,20 @@ def _render_history_table(df: pd.DataFrame, rarity: int):
     rarity_df = rarity_df.sort_values("datetime")
     rarity_df["No."] = rarity_df.groupby("account").cumcount() + 1
 
-    type_choice = st.radio(
-        "Type", ["All", "Character", "Weapon"], horizontal=True, key=f"history_type_{rarity}"
-    )
+    banner_choices = ["All"] + order_banners(rarity_df["banner_type"].dropna().astype(str).unique())
+    f1, f2 = st.columns([3, 2])
+    with f1:
+        banner_choice = st.radio("Banner", banner_choices, horizontal=True, key=f"history_banner_{rarity}")
+    with f2:
+        type_choice = st.radio(
+            "Type", ["All", "Character", "Weapon"], horizontal=True, key=f"history_type_{rarity}"
+        )
+    if banner_choice != "All":
+        rarity_df = rarity_df[rarity_df["banner_type"].astype(str) == banner_choice]
     if type_choice != "All":
         rarity_df = rarity_df[rarity_df["item_category"].str.lower() == type_choice.lower()]
     if rarity_df.empty:
-        st.info(f"No {type_choice.lower()} {rarity}★ pulls found.")
+        st.info(f"No {rarity}★ pulls found for Banner: {banner_choice} · Type: {type_choice}.")
         return
 
     pity = rarity_df["pity"].dropna()
