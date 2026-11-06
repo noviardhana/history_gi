@@ -275,6 +275,10 @@
     "name": "Mika",
     "rarity": 4
   },
+  "mitya": {
+    "name": "Mitya",
+    "rarity": 5
+  },
   "mona": {
     "name": "Mona",
     "rarity": 5
@@ -414,6 +418,10 @@
   "traveler_pyro": {
     "name": "Traveler (Pyro)",
     "rarity": 5
+  },
+  "valeriy": {
+    "name": "Valeriy",
+    "rarity": 4
   },
   "varesa": {
     "name": "Varesa",

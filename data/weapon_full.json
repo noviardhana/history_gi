@@ -1018,5 +1018,9 @@
   "winters_heavy_heart": {
     "name": "Winter's Heavy Heart",
     "rarity": 4
+  },
+  "starsealed_edict": {
+    "name": "Starsealed Edict",
+    "rarity": 5
   }
 }
