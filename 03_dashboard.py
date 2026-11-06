@@ -25,6 +25,7 @@ Run this script from the project root so Streamlit picks up that config.
 """
 
 import argparse
+import html
 from pathlib import Path
 
 import pandas as pd
@@ -38,8 +39,8 @@ DATA_DIR = BASE_DIR / "data"
 # ----------------------------------------------------------------------------
 # Design tokens
 # ----------------------------------------------------------------------------
-BG_MAIN = "#0f0f26"
-BG_CARD = "#1b1b3a"
+BG_MAIN = "#12122b"
+BG_CARD = "#1e1e42"
 BG_CARD_ALT = "#22224a"
 BG_ELEVATED = "#26264f"
 TEXT_PRIMARY = "#f4f3fb"
@@ -77,6 +78,12 @@ HARD_PITY_5STAR = {
     "Standard": 90,
     "Weapon Event": 80,
     "Beginners": 20,
+}
+# 5★ soft pity start (rates ramp up from this pull)
+SOFT_PITY_5STAR = {
+    "Character Event": 74,
+    "Standard": 74,
+    "Weapon Event": 63,
 }
 HARD_PITY_4STAR = {
     "Character Event": 10,
@@ -313,6 +320,61 @@ st.markdown(
         color: {TEXT_SECONDARY};
         margin: 4px 0 6px 0;
     }}
+    /* ---- TL;DR, key parameters, executive summary ------------------------ */
+    .tldr-card {{
+        background: linear-gradient(135deg, {BG_CARD} 0%, {BG_ELEVATED} 100%);
+        border: 1px solid {DIVIDER};
+        border-left: 4px solid {ACCENT_GOLD};
+        border-radius: 14px;
+        padding: 16px 22px;
+        margin-bottom: 16px;
+    }}
+    .tldr-title {{
+        font-family: {FONT_MONO};
+        font-size: 0.72em;
+        letter-spacing: 0.14em;
+        color: {ACCENT_GOLD};
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }}
+    .tldr-line {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.95em;
+        line-height: 1.9;
+    }}
+    .tldr-line b {{ color: {TEXT_PRIMARY}; }}
+    .kpi-card {{
+        background-color: {BG_CARD};
+        border: 1px solid {DIVIDER};
+        border-radius: 12px;
+        padding: 14px 16px;
+        min-height: 112px;
+    }}
+    .kpi-label {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.74em;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }}
+    .kpi-value {{
+        font-family: {FONT_MONO};
+        font-weight: 700;
+        margin: 6px 0 4px 0;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }}
+    .kpi-sub {{
+        color: {TEXT_MUTED};
+        font-size: 0.78em;
+    }}
+    .summary-list {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.93em;
+        line-height: 1.85;
+        padding-left: 18px;
+        margin: 0;
+    }}
+    .summary-list b {{ color: {TEXT_PRIMARY}; }}
     .mona-footer {{
         text-align: center;
         color: {TEXT_MUTED};
@@ -531,31 +593,215 @@ def render_pity_cards(df: pd.DataFrame):
             )
 
 
-def display_metrics_row(df: pd.DataFrame):
-    """Display the account-level KPI overview row."""
-    col1, col2, col3, col4, col5 = st.columns(5)
+def win_stats(df: pd.DataFrame):
+    """(wins, losses) over decisive 4★/5★ 50-50s, same filter as calculate_win_rate."""
+    decisive = df[(df["win_50_50"].isin(["Win", "Lose"])) & (df["is_5star"] | df["is_4star"])]
+    wins = int((decisive["win_50_50"] == "Win").sum())
+    return wins, len(decisive) - wins
 
-    total_pulls = len(df)
-    five_star_pct = (df["is_5star"].sum() / total_pulls * 100) if total_pulls > 0 else 0
-    avg_pity_5 = df[df["is_5star"]]["pity"].mean() if df["is_5star"].sum() > 0 else 0
-    five_star_count = df["is_5star"].sum()
-    active_days = (df["datetime"].max() - df["datetime"].min()).days if len(df) > 0 else 0
 
-    with col1:
-        st.metric("📊 Total Pulls", f"{total_pulls:,}", delta=None)
+def calc_luck_score(df: pd.DataFrame):
+    """Same formula as the Luck Score tab (60% pity efficiency, 40% 50-50 win
+    rate), computed over the whole selection. Returns None if no data."""
+    parts = []
+    five_star = df[df["is_5star"]]
+    if len(five_star) > 0:
+        hard = five_star["banner_type"].astype(object).map(HARD_PITY_5STAR).fillna(90).astype(float)
+        pity_luck = ((1 - (five_star["pity"] - 1) / (hard - 1)) * 100).mean()
+        if pd.notna(pity_luck):
+            parts.append((pity_luck, 0.6))
+    wins, losses = win_stats(df)
+    if wins + losses > 0:
+        parts.append((wins / (wins + losses) * 100, 0.4))
+    if not parts:
+        return None
+    return sum(v * w for v, w in parts) / sum(w for _, w in parts)
 
-    with col2:
-        st.metric("⭐ 5★ Count", f"{five_star_count:,}", delta=f"{five_star_pct:.1f}%")
 
-    with col3:
-        st.metric("🍀 Avg Pity 5★", f"{avg_pity_5:.0f}", delta=None)
+def luck_verdict(score: float):
+    """(label, color) using the thresholds shown in the Luck Score tab."""
+    if score > 70:
+        return "Very lucky 🍀", SUCCESS
+    if score >= 50:
+        return "Above average", ACCENT_TEAL
+    return "Below average", DANGER
 
-    with col4:
-        win_rate = calculate_win_rate(df)
-        st.metric("🏆 50-50 Win Rate", f"{win_rate:.0f}%", delta=None)
 
-    with col5:
-        st.metric("📅 Active Days", f"{active_days:,}", delta=None)
+def build_summary_stats(df: pd.DataFrame) -> dict:
+    """Headline numbers shared by the TL;DR, key parameters and summary."""
+    total = len(df)
+    five = df[df["is_5star"]].sort_values("datetime")
+    n5 = len(five)
+    wins, losses = win_stats(df)
+    return {
+        "total": total,
+        "n5": n5,
+        "n4": int(df["is_4star"].sum()),
+        "rate_5": (n5 / total * 100) if total else 0,
+        "per_5": (total / n5) if n5 else None,
+        "avg_pity_5": five["pity"].mean() if n5 else None,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": (wins / (wins + losses) * 100) if wins + losses else None,
+        "luck": calc_luck_score(df),
+        "last5": five.iloc[-1] if n5 else None,
+    }
+
+
+def render_tldr(df: pd.DataFrame, stats: dict, single_account: bool):
+    """Three-line TL;DR: where you are, what's next, how the 50-50s went."""
+    lines = []
+
+    if stats["n5"]:
+        luck_txt = ""
+        if stats["luck"] is not None:
+            label, _ = luck_verdict(stats["luck"])
+            luck_txt = f" · luck score <b>{stats['luck']:.0f}</b> ({label})"
+        lines.append(
+            f"🔮 <b>{stats['total']:,}</b> pulls → <b>{stats['n5']}</b> five-star, "
+            f"1 per <b>{stats['per_5']:.1f}</b> pulls{luck_txt}"
+        )
+    else:
+        lines.append(f"🔮 <b>{stats['total']:,}</b> pulls, no 5★ yet")
+
+    if single_account:
+        parts = []
+        for banner, short in [("Character Event", "Character"), ("Weapon Event", "Weapon")]:
+            pity = compute_current_pity(df, banner, star=5)
+            if pity is None:
+                continue
+            hard = HARD_PITY_5STAR[banner]
+            parts.append(f"{short} <b>{pity}/{hard}</b> ({max(hard - pity, 0)} to guaranteed)")
+        if parts:
+            lines.append("⏳ Current 5★ pity: " + " · ".join(parts))
+
+    third = []
+    if stats["win_rate"] is not None:
+        third.append(f"🏆 50-50: <b>{stats['win_rate']:.0f}%</b> won ({stats['wins']}W–{stats['losses']}L)")
+    last5 = stats["last5"]
+    if last5 is not None:
+        pity_txt = f", pity {int(last5['pity'])}" if pd.notna(last5["pity"]) else ""
+        third.append(f"last 5★: <b>{html.escape(str(last5['item_name']))}</b>{pity_txt}")
+    if third:
+        lines.append(" · ".join(third))
+
+    body = "".join(f'<div class="tldr-line">{line}</div>' for line in lines)
+    st.markdown(
+        f'<div class="tldr-card"><div class="tldr-title">⚡ TL;DR</div>{body}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def kpi_card(label: str, value: str, sub: str = "", color: str = ACCENT_GOLD, value_size: str = "1.6em") -> str:
+    return (
+        f'<div class="kpi-card"><div class="kpi-label">{label}</div>'
+        f'<div class="kpi-value" style="color:{color}; font-size:{value_size};">{value}</div>'
+        f'<div class="kpi-sub">{sub}</div></div>'
+    )
+
+
+def render_key_parameters(stats: dict):
+    """The handful of numbers worth looking at first."""
+    cols = st.columns(6)
+    cards = []
+
+    cards.append(kpi_card("🔮 Total Pulls", f"{stats['total']:,}", f"≈ {stats['total'] * 160:,} primogems"))
+
+    per5 = f"1 per {stats['per_5']:.1f} pulls" if stats["per_5"] else "no 5★ yet"
+    cards.append(kpi_card("⭐ 5★ Obtained", f"{stats['n5']:,}", f"{per5} · 4★: {stats['n4']:,}"))
+
+    avg = f"{stats['avg_pity_5']:.1f}" if stats["avg_pity_5"] is not None else "-"
+    cards.append(kpi_card("🍀 Avg Pity 5★", avg, "lower = better"))
+
+    if stats["win_rate"] is not None:
+        color = SUCCESS if stats["win_rate"] >= 50 else DANGER
+        cards.append(
+            kpi_card("🏆 50-50 Win Rate", f"{stats['win_rate']:.0f}%", f"{stats['wins']}W–{stats['losses']}L", color)
+        )
+    else:
+        cards.append(kpi_card("🏆 50-50 Win Rate", "-", "no decisive 50-50s", TEXT_MUTED))
+
+    if stats["luck"] is not None:
+        label, color = luck_verdict(stats["luck"])
+        cards.append(kpi_card("✨ Luck Score", f"{stats['luck']:.0f}", label, color))
+    else:
+        cards.append(kpi_card("✨ Luck Score", "-", "needs 5★ or 50-50 data", TEXT_MUTED))
+
+    last5 = stats["last5"]
+    if last5 is not None:
+        pity_txt = f" · pity {int(last5['pity'])}" if pd.notna(last5["pity"]) else ""
+        cards.append(
+            kpi_card(
+                "🆕 Latest 5★",
+                html.escape(str(last5["item_name"])),
+                f"{last5['datetime']:%Y-%m-%d}{pity_txt}",
+                ACCENT_GOLD,
+                value_size="1.05em",
+            )
+        )
+    else:
+        cards.append(kpi_card("🆕 Latest 5★", "-", "none yet", TEXT_MUTED, value_size="1.05em"))
+
+    for col, card in zip(cols, cards):
+        with col:
+            st.markdown(card, unsafe_allow_html=True)
+
+
+def render_executive_summary(df: pd.DataFrame, stats: dict, single_account: bool):
+    """Short, auto-generated written summary of the selected account(s)."""
+    items = []
+    start = df["datetime"].min().strftime("%b %Y")
+    end = df["datetime"].max().strftime("%b %Y")
+
+    overall = f"<b>Overall:</b> {stats['total']:,} pulls ({start} – {end}) gave {stats['n5']} five-star ({stats['rate_5']:.2f}%) and {stats['n4']} four-star."
+    if stats["avg_pity_5"] is not None:
+        overall += f" Average 5★ pity is {stats['avg_pity_5']:.1f}."
+    items.append(overall)
+
+    five = df[df["is_5star"]]
+    decisive5 = five[five["win_50_50"].isin(["Win", "Lose"])]
+    if len(decisive5) > 0:
+        w5 = int((decisive5["win_50_50"] == "Win").sum())
+        l5 = len(decisive5) - w5
+        g5 = int((five["win_50_50"] == "Guaranteed").sum())
+        items.append(
+            f"<b>50-50 (5★ only):</b> won {w5}, lost {l5} ({w5 / (w5 + l5) * 100:.0f}% win rate); {g5} more came from guarantees."
+        )
+
+    perf = df.groupby("banner_type", observed=True).agg(pulls=("item_id", "count"), five=("is_5star", "sum"))
+    perf = perf[perf["five"] > 0]
+    if len(perf) >= 2:
+        ppf = perf["pulls"] / perf["five"]
+        best, worst = ppf.idxmin(), ppf.idxmax()
+        if best != worst:
+            items.append(
+                f"<b>Banner efficiency:</b> {best} is the most efficient ({ppf[best]:.1f} pulls per 5★), "
+                f"{worst} the least ({ppf[worst]:.1f})."
+            )
+
+    monthly = df.groupby("year_month").size()
+    items.append(
+        f"<b>Activity:</b> busiest month was {monthly.idxmax()} ({monthly.max():,} pulls); "
+        f"latest pull on {df['datetime'].max():%Y-%m-%d}."
+    )
+
+    if single_account:
+        for banner in ["Character Event", "Weapon Event"]:
+            pity = compute_current_pity(df, banner, star=5)
+            if pity is None:
+                continue
+            hard, soft = HARD_PITY_5STAR[banner], SOFT_PITY_5STAR[banner]
+            if pity >= soft:
+                status = f"in soft pity (starts at {soft}), {max(hard - pity, 0)} pulls to guaranteed"
+            else:
+                status = f"{soft - pity} pulls until soft pity ({soft}), {hard - pity} to guaranteed"
+            items.append(f"<b>{banner} now:</b> pity {pity}/{hard} — {status}.")
+    else:
+        items.append("<b>Current pity:</b> select a single account to see it.")
+
+    body = "".join(f"<li>{item}</li>" for item in items)
+    with st.expander("📝 Executive Summary", expanded=True):
+        st.markdown(f'<ul class="summary-list">{body}</ul>', unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -1026,6 +1272,82 @@ def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
 
 
 # ============================================================================
+# INSIGHT 9: Pull History (5★ and 4★)
+# ============================================================================
+def _render_history_table(df: pd.DataFrame, rarity: int):
+    rarity_df = df[df["rarity"] == rarity].copy()
+    if rarity_df.empty:
+        st.info(f"No {rarity}★ pulls found for the current filters.")
+        return
+
+    # Running number of each pull within its account (1 = oldest)
+    rarity_df = rarity_df.sort_values("datetime")
+    rarity_df["No."] = rarity_df.groupby("account").cumcount() + 1
+
+    type_choice = st.radio(
+        "Type", ["All", "Character", "Weapon"], horizontal=True, key=f"history_type_{rarity}"
+    )
+    if type_choice != "All":
+        rarity_df = rarity_df[rarity_df["item_category"].str.lower() == type_choice.lower()]
+    if rarity_df.empty:
+        st.info(f"No {type_choice.lower()} {rarity}★ pulls found.")
+        return
+
+    pity = rarity_df["pity"].dropna()
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(f"{rarity}★ Total", f"{len(rarity_df):,}")
+    c2.metric("Avg Pity", f"{pity.mean():.1f}" if len(pity) else "-")
+    c3.metric("Lowest Pity", f"{int(pity.min())}" if len(pity) else "-")
+    c4.metric("Highest Pity", f"{int(pity.max())}" if len(pity) else "-")
+
+    multi_account = df["account"].nunique() > 1
+    columns = ["No.", "datetime"] + (["account"] if multi_account else []) + [
+        "item_name", "item_category", "banner_type", "pity", "win_50_50",
+    ]
+    view = (
+        rarity_df.sort_values("datetime", ascending=False)[columns]
+        .rename(
+            columns={
+                "datetime": "Date",
+                "account": "Account",
+                "item_name": "Name",
+                "item_category": "Type",
+                "banner_type": "Banner",
+                "pity": "Pity",
+                "win_50_50": "Result",
+            }
+        )
+    )
+    view["Date"] = view["Date"].dt.strftime("%Y-%m-%d %H:%M")
+    view["Banner"] = view["Banner"].astype(str)
+    view["Type"] = view["Type"].str.capitalize()
+    view["Result"] = view["Result"].fillna("N/A")
+
+    st.dataframe(
+        style_result_column(view, "Result"),
+        use_container_width=True,
+        hide_index=True,
+        height=480,
+        column_config={
+            "No.": st.column_config.NumberColumn("No.", format="%d", width="small"),
+            "Pity": st.column_config.ProgressColumn(
+                "Pity", format="%d", min_value=0, max_value=90 if rarity == 5 else 10
+            ),
+        },
+    )
+    st.caption("No. = order of the pull within its account, counted inside the current date/banner filters. Newest first.")
+
+
+def insight_9_pull_history(df: pd.DataFrame):
+    section_header("📜", "Pull History", "Every 5★ and 4★ pull, newest first")
+    tab_5, tab_4 = st.tabs(["⭐ 5★ History", "💜 4★ History"])
+    with tab_5:
+        _render_history_table(df, 5)
+    with tab_4:
+        _render_history_table(df, 4)
+
+
+# ============================================================================
 # MAIN APP
 # ============================================================================
 def main():
@@ -1092,10 +1414,14 @@ def main():
     ]
     render_hero(title, subtitle, hero_chips)
 
-    # Banner pity meters, then account overview KPIs
-    render_pity_cards(display_df)
+    # TL;DR -> key parameters -> live pity meters -> written summary
+    single_account = display_df["account"].nunique() == 1
+    stats = build_summary_stats(display_df)
+    render_tldr(display_df, stats, single_account)
+    render_key_parameters(stats)
     st.markdown("")
-    display_metrics_row(display_df)
+    render_pity_cards(display_df)
+    render_executive_summary(display_df, stats, single_account)
     st.divider()
 
     # ---- Sidebar: date & banner filters ----
@@ -1127,9 +1453,10 @@ def main():
     display_df = display_df[display_df["banner_type"].isin(banner_filter)]
 
     # Tabs for insights
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    tab1, tab9, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
         [
             "📊 Total Pulls",
+            "📜 History",
             "📈 Timeline",
             "🍀 Pity 5★",
             "🏆 50-50",
@@ -1142,6 +1469,9 @@ def main():
 
     with tab1:
         insight_1_total_pull(display_df)
+
+    with tab9:
+        insight_9_pull_history(display_df)
 
     with tab2:
         insight_2_timeline(display_df)
