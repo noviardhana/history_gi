@@ -1,4 +1,4 @@
-name: CML Pipeline
+name: Wish Pipeline
 
 on:
   push:
@@ -9,10 +9,9 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
-  group: cml-pipeline-main
+  group: wish-pipeline-main
   cancel-in-progress: false
 
 jobs:
@@ -70,11 +69,7 @@ jobs:
             sleep 5
           done
 
-      - uses: iterative/setup-cml@v2
-
-      - name: Build CML report
-        env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build report
         run: |
           SHA=$(git rev-parse HEAD)
           RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
@@ -86,11 +81,9 @@ jobs:
             for csv in outputs/*.csv; do
               [ -e "$csv" ] || continue
               echo "### $(basename "$csv")"
-              head -n 15 "$csv" | column -s, -t >> report_table.tmp
               echo '```'
-              cat report_table.tmp
+              head -n 15 "$csv" | column -s, -t
               echo '```'
-              rm -f report_table.tmp
               echo
             done
 
@@ -102,4 +95,12 @@ jobs:
             done
           } > report.md
 
-          cml comment create report.md
+          # GitHub comment body limit is 65,536 chars
+          head -c 60000 report.md > report_trimmed.md
+
+      - name: Post report as commit comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/commits/$(git rev-parse HEAD)/comments" \
+            -F body=@report_trimmed.md
