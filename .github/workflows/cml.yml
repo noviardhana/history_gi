@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'data/paimon-moe-local-data.json'
+      - '.github/workflows/cml.yml'
   workflow_dispatch: {}
 
 permissions:
