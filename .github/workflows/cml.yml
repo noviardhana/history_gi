@@ -57,12 +57,27 @@ jobs:
           fi
           kill $DASH_PID 2>/dev/null || true
 
+      - name: Commit regenerated data & outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/char_full.json data/weapon_full.json data/data_clean.csv outputs/
+          git diff --cached --quiet || git commit -m "chore: auto-update pipeline outputs [skip ci]"
+
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done
+
       - uses: iterative/setup-cml@v2
 
       - name: Build CML report
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          SHA=$(git rev-parse HEAD)
+          RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
           {
             echo "## 📊 Wish Analytics Report"
             echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\`"
@@ -82,22 +97,9 @@ jobs:
             for png in outputs/*.png; do
               [ -e "$png" ] || continue
               echo "### $(basename "$png")"
-              echo "![${png}](${png})"
+              echo "![$(basename "$png")](${RAW}/${png})"
               echo
             done
           } > report.md
 
           cml comment create report.md
-
-      - name: Commit regenerated data & outputs
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/char_full.json data/weapon_full.json data/data_clean.csv outputs/
-          git diff --cached --quiet || git commit -m "chore: auto-update pipeline outputs [skip ci]"
-
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
-            echo "Push attempt $i failed, retrying..."
-            sleep 5
-          done
