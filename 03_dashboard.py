@@ -380,7 +380,72 @@ st.markdown(
         color: {TEXT_MUTED};
         font-size: 0.78em;
         padding: 18px 0 6px 0;
+        border-top: 1px solid {DIVIDER};
+        margin-top: 28px;
     }}
+
+    /* ---- Page frame: width, spacing, hidden Streamlit chrome ------------- */
+    .block-container {{
+        max-width: 1400px;
+        padding-top: 2.2rem;
+        padding-bottom: 2rem;
+    }}
+    #MainMenu, footer {{ visibility: hidden; }}
+    header[data-testid="stHeader"] {{ background: transparent; }}
+
+    /* ---- Block labels (group headings between page areas) ---------------- */
+    .block-label {{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 26px 0 12px 0;
+    }}
+    .block-label-text {{
+        font-family: {FONT_MONO};
+        font-size: 0.74em;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: {TEXT_SECONDARY};
+        white-space: nowrap;
+    }}
+    .block-label-line {{
+        flex: 1;
+        height: 1px;
+        background: {DIVIDER};
+    }}
+
+    /* ---- Cards: consistent hover + equal heights ------------------------- */
+    .paimon-card, .kpi-card {{
+        transition: border-color .15s ease, transform .15s ease;
+    }}
+    .paimon-card:hover, .kpi-card:hover {{
+        border-color: rgba(242,166,65,0.45);
+        transform: translateY(-1px);
+    }}
+    .kpi-card {{ margin-bottom: 12px; }}
+
+    /* ---- Tabs: scroll instead of wrapping, roomier hit area -------------- */
+    [data-baseweb="tab-list"] {{ overflow-x: auto; }}
+    [data-baseweb="tab"] {{ padding: 10px 14px; white-space: nowrap; }}
+    [data-baseweb="tab-panel"] {{ padding-top: 18px; }}
+
+    /* ---- Expanders, charts, sidebar -------------------------------------- */
+    [data-testid="stExpander"] {{
+        border: 1px solid {DIVIDER};
+        border-radius: 12px;
+        background-color: {BG_CARD};
+    }}
+    [data-testid="stPlotlyChart"] {{
+        background-color: {BG_CARD};
+        border: 1px solid {DIVIDER};
+        border-radius: 14px;
+        padding: 6px 8px 2px 8px;
+    }}
+    [data-testid="stSidebar"] {{
+        background-color: {BG_CARD};
+        border-right: 1px solid {DIVIDER};
+    }}
+    [data-testid="stSidebar"] hr {{ margin: 14px 0; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -401,6 +466,15 @@ def section_header(icon: str, title: str, subtitle: str = ""):
             {sub_html}
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def block_label(text: str):
+    """Thin labelled divider that groups page areas (Overview, Pity, Analysis)."""
+    st.markdown(
+        f'<div class="block-label"><span class="block-label-text">{text}</span>'
+        f'<span class="block-label-line"></span></div>',
         unsafe_allow_html=True,
     )
 
@@ -702,7 +776,6 @@ def kpi_card(label: str, value: str, sub: str = "", color: str = ACCENT_GOLD, va
 
 def render_key_parameters(stats: dict):
     """The handful of numbers worth looking at first."""
-    cols = st.columns(6)
     cards = []
 
     cards.append(kpi_card("🔮 Total Pulls", f"{stats['total']:,}", f"≈ {stats['total'] * 160:,} primogems"))
@@ -742,9 +815,11 @@ def render_key_parameters(stats: dict):
     else:
         cards.append(kpi_card("🆕 Latest 5★", "-", "none yet", TEXT_MUTED, value_size="1.05em"))
 
-    for col, card in zip(cols, cards):
-        with col:
-            st.markdown(card, unsafe_allow_html=True)
+    # 3 x 2 grid: wider cards so values and sub-labels never get cramped
+    for row_cards in (cards[:3], cards[3:]):
+        for col, card in zip(st.columns(3), row_cards):
+            with col:
+                st.markdown(card, unsafe_allow_html=True)
 
 
 def render_executive_summary(df: pd.DataFrame, stats: dict, single_account: bool):
@@ -1406,25 +1481,7 @@ def main():
         title = "All Accounts"
         subtitle = f"Combined view across all {df['account'].nunique()} accounts"
 
-    # ---- Hero ----
-    hero_chips = [
-        f"⭐ {int(display_df['is_5star'].sum()):,} five-star",
-        f"🔮 {len(display_df):,} pulls",
-        f"🏆 {calculate_win_rate(display_df):.0f}% 50-50 win rate",
-    ]
-    render_hero(title, subtitle, hero_chips)
-
-    # TL;DR -> key parameters -> live pity meters -> written summary
-    single_account = display_df["account"].nunique() == 1
-    stats = build_summary_stats(display_df)
-    render_tldr(display_df, stats, single_account)
-    render_key_parameters(stats)
-    st.markdown("")
-    render_pity_cards(display_df)
-    render_executive_summary(display_df, stats, single_account)
-    st.divider()
-
-    # ---- Sidebar: date & banner filters ----
+    # ---- Sidebar: date & banner filters (applied to the whole page) ----
     st.sidebar.divider()
     st.sidebar.markdown('<div class="mona-side-section">🔎 Filters</div>', unsafe_allow_html=True)
 
@@ -1452,47 +1509,80 @@ def main():
     )
     display_df = display_df[display_df["banner_type"].isin(banner_filter)]
 
-    # Tabs for insights
-    tab1, tab9, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    if display_df.empty:
+        st.warning("No pulls match the current filters. Adjust the date range or banner filter in the sidebar.")
+        return
+
+    # ---- Hero ----
+    hero_chips = [
+        f"📅 {date_range[0]} → {date_range[1]}",
+        f"⭐ {int(display_df['is_5star'].sum()):,} five-star",
+        f"🔮 {len(display_df):,} pulls",
+        f"🏆 {calculate_win_rate(display_df):.0f}% 50-50 win rate",
+    ]
+    render_hero(title, subtitle, hero_chips)
+
+    # Overview -> pity meters -> written summary -> detailed analysis
+    single_account = display_df["account"].nunique() == 1
+    stats = build_summary_stats(display_df)
+
+    block_label("Overview")
+    render_tldr(display_df, stats, single_account)
+    render_key_parameters(stats)
+
+    block_label("Banner Pity Meters")
+    render_pity_cards(display_df)
+    st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
+
+    block_label("Summary")
+    render_executive_summary(display_df, stats, single_account)
+
+    block_label("Detailed Analysis")
+
+    # Tabs ordered for presentation: big picture -> patterns -> outcomes -> items -> raw history
+    (
+        tab_total, tab_banner, tab_timeline, tab_pity, tab_5050,
+        tab_luck, tab_items, tab_latest, tab_history,
+    ) = st.tabs(
         [
             "📊 Total Pulls",
-            "📜 History",
+            "📍 Banner",
             "📈 Timeline",
             "🍀 Pity 5★",
             "🏆 50-50",
-            "👑 Top Items",
-            "📍 Banner",
             "✨ Luck Score",
+            "👑 Top Items",
             "🆕 Latest 5★",
+            "📜 History",
         ]
     )
 
-    with tab1:
+    with tab_total:
         insight_1_total_pull(display_df)
 
-    with tab9:
-        insight_9_pull_history(display_df)
-
-    with tab2:
-        insight_2_timeline(display_df)
-
-    with tab3:
-        insight_3_pity_distribution(display_df)
-
-    with tab4:
-        insight_4_win_lose(display_df)
-
-    with tab5:
-        insight_5_top_items(display_df)
-
-    with tab6:
+    with tab_banner:
         insight_6_banner_performance(display_df)
 
-    with tab7:
+    with tab_timeline:
+        insight_2_timeline(display_df)
+
+    with tab_pity:
+        insight_3_pity_distribution(display_df)
+
+    with tab_5050:
+        insight_4_win_lose(display_df)
+
+    with tab_luck:
         insight_7_luck_score(display_df)
 
-    with tab8:
+    with tab_items:
+        insight_5_top_items(display_df)
+
+    with tab_latest:
         insight_8_latest_5star(display_df)
+
+    with tab_history:
+        insight_9_pull_history(display_df)
 
     # ---- Sidebar: export ----
     st.sidebar.divider()
