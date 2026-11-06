@@ -557,6 +557,17 @@ def load_data(filepath: str) -> pd.DataFrame:
     df["is_4star"] = df["rarity"] == 4
     df["is_3star"] = df["rarity"] == 3
 
+    # Pulls from one multi-pull share the same timestamp, so datetime alone
+    # cannot order them. `seq` is the true chronological position (0 = oldest)
+    # inferred from the file's row order: if an account's rows run newest-first,
+    # the order is reversed.
+    df["_row"] = range(len(df))
+    def _chrono_seq(g):
+        newest_first = g["datetime"].iloc[0] > g["datetime"].iloc[-1]
+        return g["_row"].max() - g["_row"] if newest_first else g["_row"]
+    df["seq"] = pd.concat([_chrono_seq(g) for _, g in df.groupby("account", sort=False)]).reindex(df.index)
+    df = df.drop(columns="_row")
+
     # Make banner_type an ordered categorical so every groupby/pivot in the
     # dashboard naturally sorts as Character Event -> Weapon Event -> Standard
     # -> Beginners, instead of the default alphabetical order.
@@ -586,17 +597,20 @@ def get_account_order(df: pd.DataFrame) -> list:
 
 def compute_current_pity(df: pd.DataFrame, banner_type: str, star: int = 5):
     """Number of pulls since the last reset for the given star tier's pity
-    counter. 5-star pity resets on a 5-star pull; 4-star pity resets on
-    either a 4-star or a 5-star pull (matching in-game mechanics). Returns
+    counter. 5-star pity resets on a 5-star pull; 4-star pity resets only on
+    a 4-star pull (independent counters). Returns
     None if the banner has no pulls at all."""
-    banner_df = df[df["banner_type"] == banner_type].sort_values("datetime")
+    banner_df = df[df["banner_type"] == banner_type].sort_values(["datetime", "seq"])
     if banner_df.empty:
         return None
     banner_df = banner_df.reset_index(drop=True)
     if star == 5:
         reset_mask = banner_df["is_5star"]
     else:
-        reset_mask = banner_df["is_4star"] | banner_df["is_5star"]
+        # 4-star counter is independent: only a 4-star resets it (a 5-star
+        # pull still counts as a pull). To make 5-star also reset it, use
+        # banner_df["is_4star"] | banner_df["is_5star"].
+        reset_mask = banner_df["is_4star"]
     reset_positions = banner_df.index[reset_mask]
     if len(reset_positions) == 0:
         return len(banner_df)
@@ -704,7 +718,7 @@ def luck_verdict(score: float):
 def build_summary_stats(df: pd.DataFrame) -> dict:
     """Headline numbers shared by the TL;DR, key parameters and summary."""
     total = len(df)
-    five = df[df["is_5star"]].sort_values("datetime")
+    five = df[df["is_5star"]].sort_values(["datetime", "seq"])
     n5 = len(five)
     wins, losses = win_stats(df)
     return {
@@ -1293,7 +1307,7 @@ def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
     banners = order_banners(five_star["banner_type"].unique())
 
     for banner in banners:
-        banner_df = five_star[five_star["banner_type"] == banner].sort_values("datetime", ascending=False)
+        banner_df = five_star[five_star["banner_type"] == banner].sort_values(["datetime", "seq"], ascending=False)
         if banner_df.empty:
             continue
 
@@ -1356,7 +1370,7 @@ def _render_history_table(df: pd.DataFrame, rarity: int):
         return
 
     # Running number of each pull within its account (1 = oldest)
-    rarity_df = rarity_df.sort_values("datetime")
+    rarity_df = rarity_df.sort_values(["datetime", "seq"])
     rarity_df["No."] = rarity_df.groupby("account").cumcount() + 1
 
     banner_choices = ["All"] + order_banners(rarity_df["banner_type"].dropna().astype(str).unique())
@@ -1387,7 +1401,7 @@ def _render_history_table(df: pd.DataFrame, rarity: int):
         "item_name", "item_category", "banner_type", "pity", "win_50_50",
     ]
     view = (
-        rarity_df.sort_values("datetime", ascending=False)[columns]
+        rarity_df.sort_values(["datetime", "seq"], ascending=False)[columns]
         .rename(
             columns={
                 "datetime": "Date",
