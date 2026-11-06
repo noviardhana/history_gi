@@ -446,6 +446,17 @@ st.markdown(
         border-right: 1px solid {DIVIDER};
     }}
     [data-testid="stSidebar"] hr {{ margin: 14px 0; }}
+    .chart-note {{
+        color: {TEXT_SECONDARY};
+        font-size: 0.84em;
+        line-height: 1.6;
+        background: rgba(255,255,255,0.03);
+        border-left: 3px solid {ACCENT_GOLD};
+        border-radius: 0 8px 8px 0;
+        padding: 8px 14px;
+        margin: 8px 0 18px 0;
+    }}
+    .chart-note b {{ color: {TEXT_PRIMARY}; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -477,6 +488,11 @@ def block_label(text: str):
         f'<span class="block-label-line"></span></div>',
         unsafe_allow_html=True,
     )
+
+
+def chart_note(text: str):
+    """Short explanatory comment shown under a chart (supports <b> tags)."""
+    st.markdown(f'<div class="chart-note">💡 {text}</div>', unsafe_allow_html=True)
 
 
 def badge(text: str, color: str) -> str:
@@ -681,6 +697,19 @@ def render_pity_cards(df: pd.DataFrame):
             )
 
 
+def render_pity_section(df: pd.DataFrame):
+    """One set of pity cards for a single account; one tab per account when
+    several accounts are selected (pity only makes sense per account)."""
+    accounts = get_account_order(df)
+    if len(accounts) <= 1:
+        render_pity_cards(df)
+        return
+    tabs = st.tabs([f"👤 {a}" for a in accounts])
+    for tab, acc in zip(tabs, accounts):
+        with tab:
+            render_pity_cards(df[df["account"] == acc])
+
+
 def win_stats(df: pd.DataFrame):
     """(wins, losses) over decisive 4★/5★ 50-50s, same filter as calculate_win_rate."""
     decisive = df[(df["win_50_50"].isin(["Win", "Lose"])) & (df["is_5star"] | df["is_4star"])]
@@ -734,50 +763,6 @@ def build_summary_stats(df: pd.DataFrame) -> dict:
         "luck": calc_luck_score(df),
         "last5": five.iloc[-1] if n5 else None,
     }
-
-
-def render_tldr(df: pd.DataFrame, stats: dict, single_account: bool):
-    """Three-line TL;DR: where you are, what's next, how the 50-50s went."""
-    lines = []
-
-    if stats["n5"]:
-        luck_txt = ""
-        if stats["luck"] is not None:
-            label, _ = luck_verdict(stats["luck"])
-            luck_txt = f" · luck score <b>{stats['luck']:.0f}</b> ({label})"
-        lines.append(
-            f"🔮 <b>{stats['total']:,}</b> pulls → <b>{stats['n5']}</b> five-star, "
-            f"1 per <b>{stats['per_5']:.1f}</b> pulls{luck_txt}"
-        )
-    else:
-        lines.append(f"🔮 <b>{stats['total']:,}</b> pulls, no 5★ yet")
-
-    if single_account:
-        parts = []
-        for banner, short in [("Character Event", "Character"), ("Weapon Event", "Weapon")]:
-            pity = compute_current_pity(df, banner, star=5)
-            if pity is None:
-                continue
-            hard = HARD_PITY_5STAR[banner]
-            parts.append(f"{short} <b>{pity}/{hard}</b> ({max(hard - pity, 0)} to guaranteed)")
-        if parts:
-            lines.append("⏳ Current 5★ pity: " + " · ".join(parts))
-
-    third = []
-    if stats["win_rate"] is not None:
-        third.append(f"🏆 50-50: <b>{stats['win_rate']:.0f}%</b> won ({stats['wins']}W–{stats['losses']}L)")
-    last5 = stats["last5"]
-    if last5 is not None:
-        pity_txt = f", pity {int(last5['pity'])}" if pd.notna(last5["pity"]) else ""
-        third.append(f"last 5★: <b>{html.escape(str(last5['item_name']))}</b>{pity_txt}")
-    if third:
-        lines.append(" · ".join(third))
-
-    body = "".join(f'<div class="tldr-line">{line}</div>' for line in lines)
-    st.markdown(
-        f'<div class="tldr-card"><div class="tldr-title">⚡ TL;DR</div>{body}</div>',
-        unsafe_allow_html=True,
-    )
 
 
 def kpi_card(label: str, value: str, sub: str = "", color: str = ACCENT_GOLD, value_size: str = "1.6em") -> str:
@@ -842,9 +827,10 @@ def render_executive_summary(df: pd.DataFrame, stats: dict, single_account: bool
     start = df["datetime"].min().strftime("%b %Y")
     end = df["datetime"].max().strftime("%b %Y")
 
-    overall = f"<b>Overall:</b> {stats['total']:,} pulls ({start} – {end}) gave {stats['n5']} five-star ({stats['rate_5']:.2f}%) and {stats['n4']} four-star."
+    overall = f"<b>Period:</b> {start} – {end} · 5★ rate {stats['rate_5']:.2f}% ({stats['n5']} of {stats['total']:,} pulls)"
     if stats["avg_pity_5"] is not None:
-        overall += f" Average 5★ pity is {stats['avg_pity_5']:.1f}."
+        overall += f" · avg 5★ pity {stats['avg_pity_5']:.1f}"
+    overall += "."
     items.append(overall)
 
     five = df[df["is_5star"]]
@@ -874,19 +860,19 @@ def render_executive_summary(df: pd.DataFrame, stats: dict, single_account: bool
         f"latest pull on {df['datetime'].max():%Y-%m-%d}."
     )
 
-    if single_account:
-        for banner in ["Character Event", "Weapon Event"]:
-            pity = compute_current_pity(df, banner, star=5)
+    for acc in get_account_order(df):
+        acc_df = df[df["account"] == acc]
+        parts = []
+        for banner, short in [("Character Event", "Character"), ("Weapon Event", "Weapon")]:
+            pity = compute_current_pity(acc_df, banner, star=5)
             if pity is None:
                 continue
             hard, soft = HARD_PITY_5STAR[banner], SOFT_PITY_5STAR[banner]
-            if pity >= soft:
-                status = f"in soft pity (starts at {soft}), {max(hard - pity, 0)} pulls to guaranteed"
-            else:
-                status = f"{soft - pity} pulls until soft pity ({soft}), {hard - pity} to guaranteed"
-            items.append(f"<b>{banner} now:</b> pity {pity}/{hard} — {status}.")
-    else:
-        items.append("<b>Current pity:</b> select a single account to see it.")
+            state = "in soft pity" if pity >= soft else f"{soft - pity} to soft pity"
+            parts.append(f"{short} <b>{pity}/{hard}</b> ({state})")
+        if parts:
+            label = "Current 5★ pity" if single_account else f"Current 5★ pity · {html.escape(str(acc))}"
+            items.append(f"<b>{label}:</b> " + " · ".join(parts) + ".")
 
     body = "".join(f"<li>{item}</li>" for item in items)
     with st.expander("📝 Executive Summary", expanded=True):
@@ -931,6 +917,17 @@ def insight_1_total_pull(df: pd.DataFrame):
             legend=True,
         )
         st.plotly_chart(fig, use_container_width=True)
+        top_acc = summary.sort_values("total_pull", ascending=False).iloc[0]
+        if len(summary) > 1:
+            chart_note(
+                f"<b>{html.escape(str(top_acc['account']))}</b> has the most pulls ({int(top_acc['total_pull']):,}). "
+                f"5★ share per account ranges from {summary['pct_5star'].min():.2f}% to {summary['pct_5star'].max():.2f}%."
+            )
+        else:
+            chart_note(
+                f"{int(top_acc['total_pull']):,} pulls in total: {int(top_acc['pull_5star'])} five-star "
+                f"({top_acc['pct_5star']:.2f}%), {int(top_acc['pull_4star'])} four-star and {int(top_acc['pull_3star'])} three-star."
+            )
 
     with col2:
         fig = go.Figure()
@@ -945,6 +942,14 @@ def insight_1_total_pull(df: pd.DataFrame):
             legend=True,
         )
         st.plotly_chart(fig, use_container_width=True)
+        ar_df = summary.dropna(subset=["adventure_rank"])
+        if len(ar_df):
+            top_ar = ar_df.sort_values("adventure_rank", ascending=False).iloc[0]
+            wl_txt = f" (World Level {int(top_ar['world_level'])})" if pd.notna(top_ar["world_level"]) else ""
+            chart_note(
+                f"Progression context only: highest Adventure Rank is {int(top_ar['adventure_rank'])}{wl_txt} "
+                f"on <b>{html.escape(str(top_ar['account']))}</b>. It shows how far an account has advanced, not how lucky it was."
+            )
 
     with st.expander("📋 Data Details"):
         st.dataframe(summary, use_container_width=True, hide_index=True)
@@ -998,6 +1003,12 @@ def insight_2_timeline(df: pd.DataFrame):
     )
     fig.update_yaxes(range=[0, monthly_total.max() * 1.15])
     st.plotly_chart(fig, use_container_width=True)
+    top_banner = pivot.sum().idxmax()
+    top_share = pivot[top_banner].sum() / pivot.values.sum() * 100
+    chart_note(
+        f"Busiest month: <b>{monthly_total.idxmax()}</b> ({int(monthly_total.max()):,} pulls); "
+        f"average {monthly_total.mean():.0f} pulls per active month. {top_banner} makes up {top_share:.0f}% of all pulls."
+    )
 
     with st.expander("📋 Data Details"):
         st.dataframe(timeline, use_container_width=True, hide_index=True)
@@ -1036,6 +1047,14 @@ def insight_3_pity_distribution(df: pd.DataFrame):
                 )
                 apply_layout(fig, title=banner, xaxis_title="Pity", yaxis_title="Frequency")
                 st.plotly_chart(fig, use_container_width=True)
+
+    avgs = five_star.groupby("banner_type", observed=True)["pity"].mean()
+    avg_txt = " · ".join(f"{b} <b>{avgs[b]:.1f}</b>" for b in banners if b in avgs.index and pd.notna(avgs[b]))
+    chart_note(
+        f"Average 5★ pity: {avg_txt}. Each bar counts how many 5★ landed at that pity; the dashed line is the average. "
+        f"Clusters near soft pity ({SOFT_PITY_5STAR['Character Event']} for Character/Standard, "
+        f"{SOFT_PITY_5STAR['Weapon Event']} for Weapon) are expected; bars far to the left are early, lucky pulls."
+    )
 
     with st.expander("📋 Data Details"):
         detail = five_star[
@@ -1081,6 +1100,11 @@ def insight_4_win_lose(df: pd.DataFrame):
             legend=True,
         )
         st.plotly_chart(fig, use_container_width=True)
+        tot = rate_df["win_50_50"].value_counts()
+        chart_note(
+            f"Overall: {int(tot.get('Win', 0))} won, {int(tot.get('Lose', 0))} lost, {int(tot.get('Guaranteed', 0))} guaranteed. "
+            "'Guaranteed' means the featured item came from the guarantee after losing the previous 50-50."
+        )
 
     with col2:
         decisive = rate_df[rate_df["win_50_50"].isin(["Win", "Lose"])]
@@ -1104,6 +1128,20 @@ def insight_4_win_lose(df: pd.DataFrame):
             yaxis_range=[0, 100],
         )
         st.plotly_chart(fig, use_container_width=True)
+        if len(win_rate) > 1:
+            hi = win_rate.loc[win_rate["win_rate_pct"].idxmax()]
+            lo = win_rate.loc[win_rate["win_rate_pct"].idxmin()]
+            chart_note(
+                f"Best: <b>{hi['banner_type']} {int(hi['rarity'])}★</b> ({hi['win_rate_pct']:.0f}%). "
+                f"Lowest: <b>{lo['banner_type']} {int(lo['rarity'])}★</b> ({lo['win_rate_pct']:.0f}%). "
+                "The dashed line is the 50% reference: bars above it mean more 50-50s won than lost."
+            )
+        elif len(win_rate) == 1:
+            r0 = win_rate.iloc[0]
+            chart_note(
+                f"Only <b>{r0['banner_type']} {int(r0['rarity'])}★</b> has decisive 50-50s so far ({r0['win_rate_pct']:.0f}% won). "
+                "The dashed line is the 50% reference."
+            )
 
     with st.expander("📋 Data Details"):
         st.dataframe(summary, use_container_width=True, hide_index=True)
@@ -1133,6 +1171,11 @@ def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
             apply_layout(fig, title="Top Characters (4★ & 5★)", xaxis_title="Times Obtained", yaxis_title="Character", height=480)
             fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
+            t = top_char.iloc[0]
+            chart_note(
+                f"Most frequent: <b>{html.escape(str(t['item_name']))}</b> ({int(t['times_obtained'])}x). "
+                f"Bar colour shows rarity (gold = 5★, purple = 4★); only the top {top_n} are shown."
+            )
         else:
             st.info("No 4★ or 5★ characters found.")
 
@@ -1152,6 +1195,11 @@ def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
             apply_layout(fig, title="Top Weapons (4★ & 5★)", xaxis_title="Times Obtained", yaxis_title="Weapon", height=480)
             fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
+            t = top_weapon.iloc[0]
+            chart_note(
+                f"Most frequent: <b>{html.escape(str(t['item_name']))}</b> ({int(t['times_obtained'])}x). "
+                f"Bar colour shows rarity (gold = 5★, purple = 4★); only the top {top_n} are shown."
+            )
         else:
             st.info("No 4★ or 5★ weapons found.")
 
@@ -1177,12 +1225,28 @@ def insight_6_banner_performance(df: pd.DataFrame):
         fig.add_trace(go.Bar(x=perf["banner_type"], y=perf["total_pull"], marker_color=[BANNER_COLORS.get(b, "#999") for b in perf["banner_type"]]))
         apply_layout(fig, title="Total Pulls per Banner", xaxis_title="Banner", yaxis_title="Number of Pulls")
         st.plotly_chart(fig, use_container_width=True)
+        top_b = perf.sort_values("total_pull", ascending=False).iloc[0]
+        chart_note(
+            f"<b>{top_b['banner_type']}</b> takes {top_b['total_pull'] / perf['total_pull'].sum() * 100:.0f}% "
+            f"of all pulls ({int(top_b['total_pull']):,})."
+        )
 
     with col2:
         fig = go.Figure()
         fig.add_trace(go.Bar(x=perf["banner_type"], y=perf["pull_per_5star"], marker_color=[BANNER_COLORS.get(b, "#999") for b in perf["banner_type"]]))
         apply_layout(fig, title="Pulls per 5★ (lower = more efficient)", xaxis_title="Banner", yaxis_title="Pulls per 5★")
         st.plotly_chart(fig, use_container_width=True)
+        eff = perf.dropna(subset=["pull_per_5star"])
+        if len(eff) > 1:
+            best = eff.loc[eff["pull_per_5star"].idxmin()]
+            worst = eff.loc[eff["pull_per_5star"].idxmax()]
+            chart_note(
+                f"Most efficient: <b>{best['banner_type']}</b> ({best['pull_per_5star']:.1f} pulls per 5★). "
+                f"Least efficient: <b>{worst['banner_type']}</b> ({worst['pull_per_5star']:.1f}). Lower is better."
+            )
+        elif len(eff) == 1:
+            only = eff.iloc[0]
+            chart_note(f"Only <b>{only['banner_type']}</b> has a 5★ so far ({only['pull_per_5star']:.1f} pulls per 5★).")
 
     with col3:
         decisive = df[(df["win_50_50"].isin(["Win", "Lose"])) & (df["is_5star"] | df["is_4star"])]
@@ -1200,6 +1264,16 @@ def insight_6_banner_performance(df: pd.DataFrame):
             )
             apply_layout(fig, title="50-50 Win Rate per Banner", xaxis_title="Banner", yaxis_title="Win Rate (%)", yaxis_range=[0, 100])
             st.plotly_chart(fig, use_container_width=True)
+            if len(win_rate) > 1:
+                hi = win_rate.loc[win_rate["win_rate_pct"].idxmax()]
+                lo = win_rate.loc[win_rate["win_rate_pct"].idxmin()]
+                chart_note(
+                    f"Highest: <b>{hi['banner_type']}</b> ({hi['win_rate_pct']:.0f}%). "
+                    f"Lowest: <b>{lo['banner_type']}</b> ({lo['win_rate_pct']:.0f}%). Dashed line = 50% reference."
+                )
+            else:
+                r0 = win_rate.iloc[0]
+                chart_note(f"<b>{r0['banner_type']}</b>: {r0['win_rate_pct']:.0f}% won. Dashed line = 50% reference.")
 
     with st.expander("📋 Data Details"):
         st.dataframe(perf, use_container_width=True, hide_index=True)
@@ -1266,6 +1340,13 @@ def insight_7_luck_score(df: pd.DataFrame):
         )
         apply_layout(fig, title="Luck Score per Account", xaxis_title="Account", yaxis_title="Luck Score (0-100+)")
         st.plotly_chart(fig, use_container_width=True)
+        ranked = luck_df.dropna(subset=["luck_score"])
+        if len(ranked):
+            lead = ranked.iloc[0]
+            chart_note(
+                f"Highest score: <b>{html.escape(str(lead['account']))}</b> ({lead['luck_score']:.1f}). "
+                "The dashed line (50) is the neutral baseline: above it is luckier than average, below it unluckier."
+            )
 
     with col2:
         st.markdown(
@@ -1548,11 +1629,10 @@ def main():
     stats = build_summary_stats(display_df)
 
     block_label("Overview")
-    render_tldr(display_df, stats, single_account)
     render_key_parameters(stats)
 
     block_label("Banner Pity Meters")
-    render_pity_cards(display_df)
+    render_pity_section(display_df)
     st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
 
     block_label("Summary")
