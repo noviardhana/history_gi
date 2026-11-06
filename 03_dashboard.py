@@ -490,6 +490,16 @@ def block_label(text: str):
     )
 
 
+def account_filter(df: pd.DataFrame, key: str) -> pd.DataFrame:
+    """Per-section account selector (only shown when several accounts are in
+    the current selection). Returns the dataframe for the chosen account."""
+    accounts = get_account_order(df)
+    if len(accounts) <= 1:
+        return df
+    choice = st.radio("Account", ["All"] + accounts, horizontal=True, key=f"acc_filter_{key}")
+    return df if choice == "All" else df[df["account"] == choice]
+
+
 def chart_note(text: str):
     """Short explanatory comment shown under a chart (supports <b> tags)."""
     st.markdown(f'<div class="chart-note">💡 {text}</div>', unsafe_allow_html=True)
@@ -1152,6 +1162,7 @@ def insight_4_win_lose(df: pd.DataFrame):
 # ============================================================================
 def insight_5_top_items(df: pd.DataFrame, top_n: int = 10):
     section_header("👑", "Top Character & Weapon", "Most frequently obtained 4★ and 5★ items")
+    df = account_filter(df, "top_items")
 
     col1, col2 = st.columns(2)
 
@@ -1379,6 +1390,7 @@ def insight_7_luck_score(df: pd.DataFrame):
 # ============================================================================
 def insight_8_latest_5star(df: pd.DataFrame, top_n: int = 10):
     section_header("🆕", "Latest 5★ Characters & Weapons", "The 10 most recent 5★ pulls per banner, newest first")
+    df = account_filter(df, "latest_5star")
 
     five_star = df[df["is_5star"]].copy()
     if len(five_star) == 0:
@@ -1517,6 +1529,7 @@ def _render_history_table(df: pd.DataFrame, rarity: int):
 
 def insight_9_pull_history(df: pd.DataFrame):
     section_header("📜", "Pull History", "Every 5★ and 4★ pull, newest first")
+    df = account_filter(df, "history")
     tab_5, tab_4 = st.tabs(["⭐ 5★ History", "💜 4★ History"])
     with tab_5:
         _render_history_table(df, 5)
