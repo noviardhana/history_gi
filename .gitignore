@@ -2,10 +2,9 @@
 credentials/
 secret.toml
 secrets.toml
-.streamlit/secrets.toml
 .env
 service_account*.json
-*-key.json
+haha-498910-*.json        # nama default file key dari Google Cloud
 
 # --- Python ---
 __pycache__/
@@ -13,11 +12,13 @@ __pycache__/
 .venv/
 venv/
 
-# NOTE: data/ and outputs/ must stay tracked. The CI workflow triggers on
-# data/paimon-moe-local-data.json and commits data/ + outputs/ back to main.
-# .streamlit/config.toml (dashboard theme) must stay tracked too.
-# OS / Editor
+# --- OS / Editor ---
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# --- NOTE: keep these TRACKED ---
+# data/ and outputs/     -> CI triggers on data/paimon-moe-local-data.json
+#                           and commits data/ + outputs/ back to main
+# .streamlit/config.toml -> dashboard theme
