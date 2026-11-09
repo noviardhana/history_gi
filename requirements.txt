@@ -1,4 +1,7 @@
 pandas>=2.0
+numpy>=1.24
 matplotlib>=3.7
 streamlit>=1.38
 plotly>=5.20
+gspread>=6.0
+tomli>=2.0; python_version < "3.11"
