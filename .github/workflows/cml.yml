@@ -41,6 +41,26 @@ jobs:
       - name: Run preprocessing
         run: python 01_preprocessing.py
 
+      # Optional: only runs when both repo secrets exist (Settings > Secrets and
+      # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
+      # service-account JSON key). continue-on-error so a Google/API problem
+      # never blocks committing the regenerated data & outputs below.
+      - name: Sync to Google Sheets
+        continue-on-error: true
+        env:
+          GSHEET_ID: ${{ secrets.GSHEET_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GSHEET_ID" ] || [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Sheets secrets not set - skipping sync"
+            exit 0
+          fi
+          pip install --quiet gspread
+          KEY="$RUNNER_TEMP/gcp_sa.json"
+          trap 'rm -f "$KEY"' EXIT
+          (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
+          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python 04_sync_gsheet.py
+
       - name: Run analytics
         run: python 02_analytics.py
 
