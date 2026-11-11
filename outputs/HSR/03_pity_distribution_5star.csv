@@ -1,0 +1,67 @@
+account,banner_type,datetime,item_name,item_category,pity,win_50_50
+Default,Character Event,2024-11-13 12:12:30,Himeko,character,33.0,Lose
+Default,Standard,2024-11-14 04:32:48,Welt,character,30.0,
+Default,Character Event,2024-11-17 03:44:56,Acheron,character,78.0,Guaranteed
+Default,Character Event,2024-12-11 06:12:59,Sunday,character,61.0,Win
+Default,Character Event,2025-01-16 11:39:59,The Herta,character,82.0,Win
+Default,Light Cone Event,2025-01-18 19:27:12,Into the Unreachable Veil,light_cone,66.0,Win
+Default,Light Cone Event,2025-02-08 06:46:45,But the Battle Isn't Over,light_cone,10.0,Lose
+Default,Character Event,2025-02-26 11:24:26,Tribbie,character,61.0,Win
+Default,Character Event,2025-03-22 03:13:00,Huohuo,character,33.0,Win
+Default,Standard,2025-04-01 03:29:01,Something Irreplaceable,light_cone,78.0,
+Default,Character Event,2025-04-09 09:57:42,Castorice,character,76.0,Win
+Default,Light Cone Event,2025-04-11 07:58:21,Make Farewells More Beautiful,light_cone,68.0,Guaranteed
+Default,Character Event,2025-04-22 22:10:51,Fugue,character,78.0,Win
+second,Character Event,2025-05-06 11:10:32,Himeko,character,16.0,Lose
+second,Beginners,2025-05-06 19:58:37,Himeko,character,50.0,
+second,Standard,2025-05-08 19:04:24,But the Battle Isn't Over,light_cone,39.0,
+second,Character Event,2025-05-21 09:24:08,The Herta,character,65.0,Guaranteed
+second,Character Event,2025-05-21 09:28:51,Clara,character,79.0,Lose
+Default,Character Event,2025-05-21 10:28:57,Hyacine,character,79.0,Win
+Default,Light Cone Event,2025-06-01 09:15:49,Long May Rainbows Adorn the Sky,light_cone,6.0,Win
+Default,Character Event,2025-06-29 04:54:25,Cipher,character,76.0,Win
+Default,Light Cone Event,2025-07-01 03:04:41,Lies Dance on the Breeze,light_cone,69.0,Win
+second,Standard,2025-07-01 03:42:55,Welt,character,78.0,
+second,Character Event,2025-07-02 11:13:47,Phainon,character,77.0,Guaranteed
+Default,Character Event,2025-07-07 04:51:15,Fu Xuan,character,32.0,Lose
+Default,Standard,2025-08-01 03:21:25,Gepard,character,77.0,
+Default,Collab Character Event,2025-08-03 00:30:53,Clara,character,79.0,Lose
+Default,Collab Character Event,2025-08-03 09:48:10,Saber,character,3.0,Guaranteed
+Default,Collab Light Cone Event,2025-08-18 05:43:17,A Thankless Coronation,light_cone,66.0,Win
+second,Standard,2025-09-02 16:40:49,Clara,character,25.0,
+second,Character Event,2025-09-02 18:41:07,Cerydra,character,75.0,Win
+Default,Character Event,2025-09-24 12:54:34,Evernight,character,75.0,Guaranteed
+Default,Light Cone Event,2025-09-26 05:13:01,To Evernight's Stars,light_cone,68.0,Win
+Default,Character Event,2025-11-05 09:12:12,Bronya,character,64.0,Lose
+Default,Character Event,2025-11-05 09:13:41,Cyrene,character,30.0,Guaranteed
+Default,Light Cone Event,2025-11-05 22:34:55,"This Love, Forever",light_cone,55.0,Win
+Default,Character Event,2025-11-16 11:57:13,Tribbie,character,69.0,Win
+Default,Standard,2025-12-01 08:19:47,But the Battle Isn't Over,light_cone,76.0,
+Default,Standard,2025-12-01 08:20:20,Himeko,character,2.0,
+Default,Character Event,2025-12-15 21:27:15,Cyrene,character,76.0,Win
+Default,Character Event,2025-12-21 11:16:09,Clara,character,49.0,Lose
+Default,Character Event,2025-12-22 11:08:47,The Dahlia,character,11.0,Guaranteed
+Default,Light Cone Event,2026-01-05 11:55:52,Never Forget Her Flame,light_cone,73.0,Win
+Default,Light Cone Event,2026-02-02 08:27:01,But the Battle Isn't Over,light_cone,19.0,Lose
+second,Character Event,2026-02-13 11:51:13,Yao Guang,character,73.0,Win
+Default,Character Event,2026-02-14 04:59:10,Yao Guang,character,79.0,Win
+Default,Character Event,2026-03-15 04:45:16,Welt,character,78.0,Lose
+Default,Light Cone Event,2026-03-16 04:03:36,When She Decided to See,light_cone,72.0,Guaranteed
+Default,Character Event,2026-04-22 10:19:28,Silver Wolf LV.999,character,48.0,Guaranteed
+Default,Light Cone Event,2026-04-22 10:19:40,Welcome to the Cosmic City,light_cone,8.0,Win
+Default,Character Event,2026-04-22 14:27:23,Silver Wolf LV.999,character,76.0,Win
+Default,Character Event,2026-04-29 04:26:34,Blade,character,76.0,Lose
+Default,Standard,2026-05-01 05:16:24,In the Name of the World,light_cone,77.0,
+Default,Character Event,2026-05-13 13:21:30,Evanescia,character,45.0,Guaranteed
+second,Collab Character Event,2026-06-05 19:39:51,Saber,character,71.0,Win
+Default,Character Event,2026-06-18 20:58:07,Blade,character,77.0,Lose
+Default,Standard,2026-06-22 03:39:41,Moment of Victory,light_cone,31.0,
+Default,Character Event,2026-07-15 13:19:49,Himeko • Nova,character,78.0,Guaranteed
+Default,Light Cone Event,2026-07-15 15:13:25,A Star That Lights the Night,light_cone,68.0,Win
+second,Standard,2026-08-01 19:24:54,Something Irreplaceable,light_cone,77.0,
+second,Character Event,2026-08-02 01:42:54,Sparxie,character,79.0,Win
+Default,Character Event,2026-08-04 01:09:23,Sparxie,character,78.0,Win
+Default,Collab Character Event,2026-08-25 06:35:55,Rin Tohsaka,character,38.0,Win
+Default,Character Event,2026-09-21 09:05:47,Himeko,character,65.0,Lose
+Default,Character Event,2026-10-13 04:29:19,Pearl,character,79.0,Guaranteed
+Default,Standard,2026-10-14 09:05:44,Bronya,character,79.0,

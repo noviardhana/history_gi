@@ -1,0 +1,19 @@
+banner_type,rarity,win_50_50,count
+Character Event,4,Guaranteed,106
+Character Event,4,Lose,106
+Character Event,4,Win,87
+Character Event,5,Guaranteed,10
+Character Event,5,Lose,10
+Character Event,5,Win,16
+Collab Character Event,4,Win,26
+Collab Character Event,5,Guaranteed,1
+Collab Character Event,5,Lose,1
+Collab Character Event,5,Win,2
+Collab Light Cone Event,4,Win,11
+Collab Light Cone Event,5,Win,1
+Light Cone Event,4,Guaranteed,16
+Light Cone Event,4,Lose,17
+Light Cone Event,4,Win,59
+Light Cone Event,5,Guaranteed,2
+Light Cone Event,5,Lose,2
+Light Cone Event,5,Win,8
