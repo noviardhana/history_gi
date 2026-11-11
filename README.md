@@ -23,7 +23,11 @@ Export → 00_fetch_*_lookup → 01_preprocessing[_hsr] → data/data_clean[_hsr
 ## Features
 
 - **Analytics:** pulls by rarity, monthly timeline, 5★ pity and rate-up win rate, top items, Luck Score
-- **Dashboard:** one section per game; account selector, date and banner filters; Pity Meters (all banners incl. Beginners), Summary, 9 analysis tabs, CSV export
+- **Dashboard:** three zones
+  - **Left sidebar:** pick the game (Genshin Impact or Honkai: Star Rail)
+  - **Right panel (Filters):** account (default: main account, or *All accounts*), banners (default: all, in game order), date range (default: all). Changing account resets banners and date range.
+  - **Middle:** Overview (KPIs) → Banner Pity Meters (all banners incl. Beginners) → Summary → Detailed Analysis (9 tabs) → CSV export
+  - Every chart has a short commentary; chart totals follow the selected banners (e.g. only Character selected → Character numbers only)
 - **Google Sheets:** one tab per account (`GI - <uid>`, `HSR - <account>`), one table per banner
   - GI: Character, Weapon, Standard, Beginners
   - HSR: Character, Light Cone, Collab Character, Collab Light Cone, Standard, Beginners
@@ -54,6 +58,8 @@ python3 01_preprocessing_hsr.py
 ```bash
 streamlit run 03_dashboard.py
 ```
+
+Fonts load from Google Fonts (`.streamlit/config.toml`), so the browser needs internet and a recent Streamlit version.
 
 Python 3.9+. On Windows use `python` or `py`.
 
@@ -153,6 +159,8 @@ git add data/ && git commit -m "update gacha data" && git push
 ## Changelog
 
 - **Added:** Beginners banner in the GI dashboard Pity Meters (2×2 grid) and in GI Google Sheet tabs.
+- **Changed:** dashboard layout: game picker in the sidebar, filters in a right panel, content in the middle; defaults are main account, all banners, full date range.
+- **Added:** total labels on the Total Pulls chart; Inter / JetBrains Mono fonts in `.streamlit/config.toml`.
 - **Added:** Honkai: Star Rail support, `game_configs.py`, per-game dashboard sections, CI game detection.
 - **Changed:** Sheet tabs named `GI - <uid>` / `HSR - <account>`; Weapon Event hard pity is 80; "Compare Accounts" merged into "All accounts".
 

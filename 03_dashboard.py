@@ -208,6 +208,7 @@ st.markdown(
     [data-testid="stExpander"] {{ border: 1px solid {DIVIDER}; border-radius: 12px; background-color: {BG_CARD}; }}
     [data-testid="stPlotlyChart"] {{ background-color: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 12px; padding: 6px 8px 2px 8px; }}
     [data-testid="stSidebar"] {{ background-color: {BG_CARD}; border-right: 1px solid {DIVIDER}; }}
+    [class*="st-key-"][class*="_filter_panel"] {{ position: sticky; top: 3.5rem; }}
     .gx-side-title {{ font-size: 1.15em; font-weight: 800; color: {TEXT_PRIMARY}; }}
     .gx-side-caption {{ color: {TEXT_MUTED}; font-size: 0.78em; margin-bottom: 6px; }}
     .gx-side-section {{
@@ -623,7 +624,11 @@ def insight_total_pull(df, cfg, k):
         fig = go.Figure()
         for r in (3, 4, 5):
             fig.add_trace(go.Bar(x=summary["account"], y=summary[f"pull_{r}star"], name=f"{r}★", marker_color=RARITY_COLORS[r]))
+        fig.add_trace(go.Scatter(x=summary["account"], y=summary["total_pull"], mode="text",
+                                 text=[f"{int(v):,}" for v in summary["total_pull"]], textposition="top center",
+                                 textfont=dict(color=TEXT_PRIMARY, size=12), showlegend=False, hoverinfo="skip", cliponaxis=False))
         apply_layout(fig, f"Total {w}s per Account", "Account", f"{w}s", barmode="stack", hovermode="x unified", legend=True)
+        fig.update_yaxes(range=[0, summary["total_pull"].max() * 1.15])
         show(fig, k, "total_pull")
         top = summary.sort_values("total_pull", ascending=False).iloc[0]
         if len(summary) > 1:
@@ -1008,71 +1013,82 @@ def render_game(cfg: GameConfig, path: Path):
         st.warning(f"{path.name} contains no usable rows.")
         return
 
-    # ---- Scope + filters (kept inside the game section) --------------------
+    # ---- Layout: content (left/middle) | filters (right) --------------------
+    main_col, filter_col = st.columns([4, 1], gap="large")
     accounts = account_order(df)
-    with st.container(border=True):
-        scope = st.radio(
-            "Account", accounts + (["All accounts"] if len(accounts) > 1 else []),
-            index=len(accounts) if len(accounts) > 1 else 0,   # default: All accounts
-            horizontal=True, key=f"{k}_scope",
-            help="Pick one account, or 'All accounts' to see them side by side.",
-        )
-        display_df = df if scope == "All accounts" else df[df["account"] == scope]
-        f1, f2 = st.columns([1, 1])
-        min_d, max_d = display_df["datetime"].min().date(), display_df["datetime"].max().date()
-        with f1:
+
+    with filter_col:
+        with st.container(border=True, key=f"{k}_filter_panel"):
+            st.markdown('<div class="gx-side-section">Filters</div>', unsafe_allow_html=True)
+            scope = st.radio(
+                "Account", accounts + (["All accounts"] if len(accounts) > 1 else []),
+                index=0, key=f"{k}_scope",          # default: main account (first in account_order)
+                help="Pick one account, or 'All accounts' to combine them.",
+            )
+            # Switching account resets banners and date range to their defaults (everything).
+            if st.session_state.get(f"{k}_last_scope") != scope:
+                st.session_state.pop(f"{k}_banners", None)
+                st.session_state.pop(f"{k}_date", None)
+                st.session_state[f"{k}_last_scope"] = scope
+
+            scope_df = df if scope == "All accounts" else df[df["account"] == scope]
+            banner_options = order_banners(cfg, scope_df["banner_type"].dropna().astype(str).unique())
+            banner_filter = st.multiselect("Banners", banner_options, default=banner_options, key=f"{k}_banners")
+
+            min_d, max_d = scope_df["datetime"].min().date(), scope_df["datetime"].max().date()
             if min_d == max_d:
                 st.caption(f"All data is from {min_d}")
                 date_range = (min_d, max_d)
             else:
-                date_range = st.slider("Date range", min_value=min_d, max_value=max_d, value=(min_d, max_d), key=f"{k}_date_{scope}")
-        display_df = display_df[(display_df["datetime"].dt.date >= date_range[0]) & (display_df["datetime"].dt.date <= date_range[1])]
-        with f2:
-            options = order_banners(cfg, display_df["banner_type"].dropna().astype(str).unique())
-            banner_filter = st.multiselect("Banners", options, default=options, key=f"{k}_banners_{scope}")
-        display_df = display_df[display_df["banner_type"].astype(str).isin(banner_filter)]
+                date_range = st.slider("Date range", min_value=min_d, max_value=max_d, value=(min_d, max_d), key=f"{k}_date")
 
-    if display_df.empty:
-        st.warning("No pulls match the current filters. Adjust the account, date range or banners.")
-        return
+    display_df = scope_df[
+        (scope_df["datetime"].dt.date >= date_range[0]) & (scope_df["datetime"].dt.date <= date_range[1])
+        & scope_df["banner_type"].astype(str).isin(banner_filter)
+    ]
 
-    single = display_df["account"].nunique() == 1
-    stats = build_summary_stats(display_df, cfg)
-    wr = f"{stats['win_rate']:.0f}% 5★ rate-up win rate" if stats["win_rate"] is not None else "no rate-up data"
-    render_hero(
-        cfg,
-        title=str(scope) if scope != "All accounts" else "All Accounts",
-        subtitle=("Single-account " if scope != "All accounts" else f"Combined view across {display_df['account'].nunique()} accounts · ")
-        + f"{cfg.pull_word.lower()} history and pity tracking",
-        chips=[f"{date_range[0]} → {date_range[1]}", f"{int(display_df['is_5star'].sum()):,} five-star",
-               f"{len(display_df):,} {cfg.pull_word.lower()}s", wr],
-    )
+    with main_col:
+        if display_df.empty:
+            st.warning("No pulls match the current filters. Adjust the account, banners or date range.")
+            return
 
-    block_label("Overview")
-    render_key_parameters(cfg, stats)
+        single = display_df["account"].nunique() == 1
+        stats = build_summary_stats(display_df, cfg)
+        wr = f"{stats['win_rate']:.0f}% 5★ rate-up win rate" if stats["win_rate"] is not None else "no rate-up data"
+        render_hero(
+            cfg,
+            title=str(scope) if scope != "All accounts" else "All Accounts",
+            subtitle=("Single-account " if scope != "All accounts" else f"Combined view across {display_df['account'].nunique()} accounts · ")
+            + f"{cfg.pull_word.lower()} history and pity tracking",
+            chips=[f"{date_range[0]} → {date_range[1]}", f"{int(display_df['is_5star'].sum()):,} five-star",
+                   f"{len(display_df):,} {cfg.pull_word.lower()}s", wr],
+        )
 
-    block_label("Banner Pity Meters")
-    render_pity_section(display_df, cfg)
-    st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
+        block_label("Overview")
+        render_key_parameters(cfg, stats)
 
-    block_label("Summary")
-    render_executive_summary(display_df, cfg, stats, single)
+        block_label("Banner Pity Meters")
+        render_pity_section(display_df, cfg)
+        st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
 
-    block_label("Detailed Analysis")
-    tabs = st.tabs(["Total Pulls", "Banner", "Timeline", "Pity 5★", "50-50", "Luck Score", "Top Items", "Latest 5★", "History"])
-    views = [insight_total_pull, insight_banner_performance, insight_timeline, insight_pity_distribution,
-             insight_win_lose, insight_luck_score, insight_top_items, insight_latest_5star, insight_pull_history]
-    for tab, view in zip(tabs, views):
-        with tab:
-            view(display_df, cfg, k)
+        block_label("Summary")
+        render_executive_summary(display_df, cfg, stats, single)
 
-    st.download_button(
-        label=f"Download filtered {cfg.key} data (CSV)",
-        data=display_df.to_csv(index=False),
-        file_name=f"{k}_gacha_data_{date_range[0]}_{date_range[1]}.csv",
-        mime="text/csv",
-        key=f"{k}_download",
-    )
+        block_label("Detailed Analysis")
+        tabs = st.tabs(["Total Pulls", "Banner", "Timeline", "Pity 5★", "50-50", "Luck Score", "Top Items", "Latest 5★", "History"])
+        views = [insight_total_pull, insight_banner_performance, insight_timeline, insight_pity_distribution,
+                 insight_win_lose, insight_luck_score, insight_top_items, insight_latest_5star, insight_pull_history]
+        for tab, view in zip(tabs, views):
+            with tab:
+                view(display_df, cfg, k)
+
+        st.download_button(
+            label=f"Download filtered {cfg.key} data (CSV)",
+            data=display_df.to_csv(index=False),
+            file_name=f"{k}_gacha_data_{date_range[0]}_{date_range[1]}.csv",
+            mime="text/csv",
+            key=f"{k}_download",
+        )
 
 
 # ============================================================================
@@ -1094,24 +1110,8 @@ def main():
         "HSR": Path(args.hsr_data) if args.hsr_data else DEFAULT_DATA["HSR"],
     }
 
-    st.sidebar.markdown('<div class="gx-side-title">Gacha Analytics</div>'
-                        '<div class="gx-side-caption">Wish and Warp history explorer</div>', unsafe_allow_html=True)
-    st.sidebar.divider()
-    st.sidebar.markdown('<div class="gx-side-section">Data sources</div>', unsafe_allow_html=True)
-    for key, cfg in GAMES.items():
-        p = paths[key]
-        if p.exists():
-            d = load_data(str(p), p.stat().st_mtime, key)
-            st.sidebar.caption(f"**{cfg.title}**: {len(d):,} pulls · {d['account'].nunique()} account(s)\n\n`{p.name}`")
-        else:
-            st.sidebar.caption(f"**{cfg.title}**: file not found\n\n`{p.name}`")
-    st.sidebar.divider()
-    st.sidebar.caption("Each game has its own section, account selector and filters. Pity rules and rate-up chances are set in game_configs.py.")
-
-    tabs = st.tabs([cfg.title for cfg in GAMES.values()])
-    for tab, (key, cfg) in zip(tabs, GAMES.items()):
-        with tab:
-            render_game(cfg, paths[key])
+    game = st.sidebar.radio("Game", list(GAMES), format_func=lambda g: GAMES[g].title, key="game")
+    render_game(GAMES[game], paths[game])
 
     st.markdown(
         '<div class="gx-footer">Gacha Analytics · data from your Paimon.moe export and StarRailStation backup · '
