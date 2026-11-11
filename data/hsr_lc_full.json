@@ -391,6 +391,10 @@
     "name": "Race to the Horizon",
     "rarity": 4
   },
+  "22009": {
+    "name": "See You at the World's End!",
+    "rarity": 4
+  },
   "23000": {
     "name": "Night on the Milky Way",
     "rarity": 5
@@ -649,6 +653,10 @@
   },
   "23064": {
     "name": "Summer Rides the Surf",
+    "rarity": 5
+  },
+  "23065": {
+    "name": "Upon the First Echo of \"Aha\"",
     "rarity": 5
   },
   "24000": {
