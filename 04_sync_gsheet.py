@@ -13,7 +13,7 @@ One tab per account, named with the game prefix:
     HSR - <account>   (e.g. "HSR - Default")
 Each tab holds one table per banner, side by side, with the columns
 No. | Date | Name | Rarity | Pity | Result.
-    GI : Character Event | Weapon Event | Standard
+    GI : Character Event | Weapon Event | Standard | Beginners
     HSR: Character Event | Light Cone Event | Collab Character Event |
          Collab Light Cone Event | Standard | Beginners
   - By default only 4* and 5* pulls are listed (--include-3star adds 3*).

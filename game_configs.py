@@ -69,15 +69,16 @@ GI = GameConfig(
     gear_category="weapon",
     gear_label="Weapon",
     soft_pity={"Character Event": 74, "Standard": 74, "Weapon Event": 63},
-    pity_card_banners=["Character Event", "Weapon Event", "Standard"],
+    pity_card_banners=["Character Event", "Weapon Event", "Standard", "Beginners"],
     summary_banners=[("Character Event", "Character"), ("Weapon Event", "Weapon")],
     currency="Primogems",
     sheet_prefix="GI",
-    sheet_banners=["Character Event", "Weapon Event", "Standard"],
+    sheet_banners=["Character Event", "Weapon Event", "Standard", "Beginners"],
     sheet_banner_style={
         "Character Event": ("🎯", "#fde7c2"),
         "Weapon Event": ("⚔️", "#d6e4f7"),
         "Standard": ("🌌", "#d5efd9"),
+        "Beginners": ("🔰", "#f6d3da"),
     },
 )
 

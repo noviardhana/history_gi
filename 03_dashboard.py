@@ -480,9 +480,10 @@ def render_key_parameters(cfg: GameConfig, stats: dict):
 
 def render_pity_cards(df: pd.DataFrame, cfg: GameConfig):
     banners = [b for b in cfg.pity_card_banners if b in set(df["banner_type"].dropna().astype(str))] or cfg.pity_card_banners
-    for i in range(0, len(banners), 3):
-        cols = st.columns(3)
-        for col, banner in zip(cols, banners[i:i + 3]):
+    per_row = 2 if len(banners) == 4 else 3   # 4 banners -> 2x2 grid instead of 3+1
+    for i in range(0, len(banners), per_row):
+        cols = st.columns(per_row)
+        for col, banner in zip(cols, banners[i:i + per_row]):
             lifetime = int((df["banner_type"] == banner).sum())
             p5, p4 = current_pity(df, banner, 5), current_pity(df, banner, 4)
             hard5 = cfg.hard_pity.get(banner, cfg.default_hard_pity)
