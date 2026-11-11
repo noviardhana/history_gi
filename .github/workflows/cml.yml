@@ -1,10 +1,11 @@
-name: Wish Pipeline
+name: Gacha Pipeline
 
 on:
   push:
     branches: [main]
     paths:
       - 'data/paimon-moe-local-data.json'
+      - 'data/starrailstation-backup_*.dat'
       - '.github/workflows/cml.yml'
   workflow_dispatch: {}
 
@@ -28,60 +29,105 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch rarity lookup (always overwrite)
-        run: python 00_fetch_rarity_lookup.py
-
-      - name: Check paimon-moe export exists
+      # Each game runs only if its export is in the repo. At least one is required.
+      #   Genshin Impact : data/paimon-moe-local-data.json
+      #   Honkai: Star Rail: data/starrailstation-backup_YYYY-MM-DD.dat
+      - name: Detect game exports
+        id: detect
         run: |
-          if [ ! -f "data/paimon-moe-local-data.json" ]; then
-            echo "::error::error please get your json file from paimon moe"
+          gi=false
+          hsr=false
+          if [ -f "data/paimon-moe-local-data.json" ]; then gi=true; fi
+          if ls data/starrailstation-backup_*.dat > /dev/null 2>&1; then hsr=true; fi
+
+          if [ "$gi" = false ] && [ "$hsr" = false ]; then
+            echo "::error::No export found. Add data/paimon-moe-local-data.json (Genshin Impact) and/or data/starrailstation-backup_YYYY-MM-DD.dat (Honkai: Star Rail)."
             exit 1
           fi
 
-      - name: Run preprocessing
+          games=""
+          if [ "$gi" = true ]; then games="gi"; fi
+          if [ "$hsr" = true ]; then games="${games:+$games,}hsr"; fi
+
+          {
+            echo "gi=$gi"
+            echo "hsr=$hsr"
+            echo "games=$games"
+          } >> "$GITHUB_OUTPUT"
+          echo "Games to process: $games"
+
+      - name: Fetch rarity lookup - Genshin Impact (always overwrite)
+        if: steps.detect.outputs.gi == 'true'
+        run: python 00_fetch_rarity_lookup.py
+
+      - name: Fetch lookup - Honkai Star Rail (always overwrite)
+        if: steps.detect.outputs.hsr == 'true'
+        run: python 00_fetch_hsr_lookup.py
+
+      - name: Run preprocessing - Genshin Impact
+        if: steps.detect.outputs.gi == 'true'
         run: python 01_preprocessing.py
+
+      - name: Run preprocessing - Honkai Star Rail
+        if: steps.detect.outputs.hsr == 'true'
+        run: python 01_preprocessing_hsr.py
 
       # Optional: only runs when both repo secrets exist (Settings > Secrets and
       # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
       # service-account JSON key). continue-on-error so a Google/API problem
       # never blocks committing the regenerated data & outputs below.
+      # Creates/updates one tab per account: "GI - <uid>" and "HSR - <account>".
       - name: Sync to Google Sheets
         continue-on-error: true
         env:
           GSHEET_ID: ${{ secrets.GSHEET_ID }}
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GAMES: ${{ steps.detect.outputs.games }}
         run: |
           if [ -z "$GSHEET_ID" ] || [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
             echo "::notice::Google Sheets secrets not set - skipping sync"
             exit 0
           fi
-          pip install --quiet gspread
           KEY="$RUNNER_TEMP/gcp_sa.json"
           trap 'rm -f "$KEY"' EXIT
           (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
-          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python 04_sync_gsheet.py
+          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python 04_sync_gsheet.py --games "$GAMES"
 
-      - name: Run analytics
+      - name: Run analytics - Genshin Impact
+        if: steps.detect.outputs.gi == 'true'
         run: python 02_analytics.py
 
+      - name: Run analytics - Honkai Star Rail
+        if: steps.detect.outputs.hsr == 'true'
+        run: python 02_analytics_hsr.py
+
+      # Renders the whole dashboard headlessly (both game sections) and fails
+      # the step on any exception. Non-blocking: data is still committed below.
       - name: Smoke-test dashboard
+        continue-on-error: true
         run: |
-          pip install --quiet streamlit
-          streamlit run 03_dashboard.py --server.headless true --server.port 8501 &
-          DASH_PID=$!
-          sleep 10
-          if curl -sf http://localhost:8501 > /dev/null; then
-            echo "Dashboard started OK"
-          else
-            echo "::warning::Dashboard failed to start"
-          fi
-          kill $DASH_PID 2>/dev/null || true
+          python - <<'PY'
+          import sys
+          from streamlit.testing.v1 import AppTest
+
+          at = AppTest.from_file("03_dashboard.py", default_timeout=180).run()
+          errors = [str(e.value).replace("\n", " ")[:300] for e in at.exception]
+          if errors:
+              print("::warning::Dashboard raised an exception: " + errors[0])
+              sys.exit(1)
+          print("Dashboard rendered OK")
+          PY
 
       - name: Commit regenerated data & outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/char_full.json data/weapon_full.json data/data_clean.csv outputs/
+          for f in \
+            data/char_full.json data/weapon_full.json data/data_clean.csv \
+            data/hsr_char_full.json data/hsr_lc_full.json data/data_clean_hsr.csv \
+            outputs; do
+            if [ -e "$f" ]; then git add "$f"; fi
+          done
           git diff --cached --quiet || git commit -m "chore: auto-update pipeline outputs [skip ci]"
 
           for i in 1 2 3; do
@@ -95,23 +141,22 @@ jobs:
           SHA=$(git rev-parse HEAD)
           RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
           {
-            echo "## 📊 Wish Analytics Report"
-            echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\`"
+            echo "## 📊 Gacha Analytics Report"
+            echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${{ steps.detect.outputs.games }}"
             echo
 
-            for csv in outputs/*.csv; do
-              [ -e "$csv" ] || continue
-              echo "### $(basename "$csv")"
+            # outputs/GI/ and outputs/HSR/ (one folder per game)
+            find outputs -type f -name '*.csv' 2>/dev/null | sort | while IFS= read -r csv; do
+              echo "### ${csv#outputs/}"
               echo '```'
               head -n 15 "$csv" | column -s, -t
               echo '```'
               echo
             done
 
-            for png in outputs/*.png; do
-              [ -e "$png" ] || continue
-              echo "### $(basename "$png")"
-              echo "![$(basename "$png")](${RAW}/${png})"
+            find outputs -type f -name '*.png' 2>/dev/null | sort | while IFS= read -r png; do
+              echo "### ${png#outputs/}"
+              echo "![${png#outputs/}](${RAW}/${png})"
               echo
             done
           } > report.md
