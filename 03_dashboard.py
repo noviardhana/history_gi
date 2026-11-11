@@ -47,22 +47,24 @@ DEFAULT_DATA = {"GI": DATA_DIR / "data_clean.csv", "HSR": DATA_DIR / "data_clean
 PREPROCESS_HINT = {"GI": "01_preprocessing.py", "HSR": "01_preprocessing_hsr.py"}
 
 # ----------------------------------------------------------------------------
-# Design tokens
+# Design tokens — restrained dark analytics theme
 # ----------------------------------------------------------------------------
-BG_CARD = "#1e1e42"
-BG_CARD_ALT = "#22224a"
-BG_ELEVATED = "#26264f"
-TEXT_PRIMARY = "#f4f3fb"
-TEXT_SECONDARY = "#9d9dc9"
-TEXT_MUTED = "#6f6f9c"
-DIVIDER = "rgba(255,255,255,0.08)"
+BG_APP = "#0b1220"
+BG_SIDEBAR = "#0e1828"
+BG_CARD = "#121e2f"
+BG_CARD_ALT = "#17263a"
+BG_ELEVATED = "#1b2b40"
+TEXT_PRIMARY = "#eef3f9"
+TEXT_SECONDARY = "#a8b6c8"
+TEXT_MUTED = "#78899f"
+DIVIDER = "rgba(157, 178, 202, 0.16)"
 
-ACCENT_GOLD = "#f2a641"
-ACCENT_PURPLE = "#b57edc"
-ACCENT_BLUE = "#5b8fd6"
-ACCENT_TEAL = "#57c7b8"
-SUCCESS = "#6bbf7b"
-DANGER = "#e2707a"
+ACCENT_GOLD = "#e9b65f"
+ACCENT_PURPLE = "#a78bfa"
+ACCENT_BLUE = "#69a9ec"
+ACCENT_TEAL = "#55b8ad"
+SUCCESS = "#57b88c"
+DANGER = "#e2767a"
 
 FONT_DISPLAY = "'Manrope', sans-serif"
 FONT_BODY = "'Inter', sans-serif"
@@ -108,116 +110,185 @@ pio.templates.default = "gacha_dark"
 st.markdown(
     f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
 
+    :root {{ color-scheme: dark; }}
     html, body, [class*="css"] {{ font-family: {FONT_BODY}; }}
     h1, h2, h3, h4, h5, .gx-hero-title, .gx-section-title, .gx-side-title {{
         font-family: {FONT_DISPLAY} !important;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.025em;
     }}
 
-    /* ---- Page frame ------------------------------------------------------ */
-    .block-container {{ max-width: 1400px; padding-top: 2.2rem; padding-bottom: 2rem; }}
+    /* ---- Application canvas --------------------------------------------- */
+    .stApp {{ background: linear-gradient(180deg, {BG_APP} 0%, #0e1726 100%); }}
+    .block-container {{ max-width: 1500px; padding: 1.6rem 2.1rem 2.6rem; }}
     #MainMenu, footer {{ visibility: hidden; }}
     header[data-testid="stHeader"] {{ background: transparent; }}
+    [data-testid="stSidebar"] {{
+        background: {BG_SIDEBAR};
+        border-right: 1px solid {DIVIDER};
+    }}
+    [data-testid="stSidebar"] > div:first-child {{ padding-top: 1.25rem; }}
+    .gx-sidebar-brand {{ padding: 0.4rem 0.35rem 1.1rem; }}
+    .gx-sidebar-mark {{
+        color: {ACCENT_TEAL}; font-family: {FONT_MONO}; font-size: 0.68rem;
+        font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+    }}
+    .gx-sidebar-name {{ color: {TEXT_PRIMARY}; font-size: 1.35rem; font-weight: 800; line-height: 1.2; margin-top: 0.25rem; }}
+    .gx-sidebar-caption {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-top: 0.35rem; line-height: 1.5; }}
+    .gx-side-section {{
+        color: {TEXT_MUTED}; font-family: {FONT_MONO}; font-size: 0.67rem;
+        font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+        margin: 0.3rem 0 0.65rem;
+    }}
+    [data-testid="stSidebar"] [data-testid="stRadio"] label p {{ color: {TEXT_SECONDARY}; font-weight: 600; }}
+    [data-testid="stSidebar"] [data-testid="stRadio"] label {{ padding: 0.24rem 0; }}
 
-    /* ---- Hero ------------------------------------------------------------- */
+    /* ---- Workspace heading ---------------------------------------------- */
+    .gx-appbar {{
+        display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
+        padding: 0.15rem 0 1.1rem; margin-bottom: 0.25rem;
+        border-bottom: 1px solid {DIVIDER};
+    }}
+    .gx-app-kicker {{ color: {ACCENT_TEAL}; font-family: {FONT_MONO}; font-size: 0.68rem;
+        font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }}
+    .gx-app-title {{ color: {TEXT_PRIMARY}; font-family: {FONT_DISPLAY}; font-size: 1.55rem;
+        font-weight: 800; letter-spacing: -0.035em; line-height: 1.2; margin-top: 0.22rem; }}
+    .gx-app-subtitle {{ color: {TEXT_MUTED}; font-size: 0.82rem; margin-top: 0.25rem; }}
+    .gx-app-status {{ color: {TEXT_SECONDARY}; font-family: {FONT_MONO}; font-size: 0.7rem;
+        border: 1px solid {DIVIDER}; background: rgba(255,255,255,0.025);
+        border-radius: 999px; padding: 0.38rem 0.75rem; white-space: nowrap; }}
+
+    /* ---- Hero ------------------------------------------------------------ */
     .gx-hero {{
-        background: linear-gradient(135deg, {BG_CARD} 0%, {BG_ELEVATED} 100%);
-        border-left: 4px solid {ACCENT_GOLD};
-        border-radius: 14px;
-        padding: 20px 26px;
-        margin: 8px 0 14px 0;
+        background: linear-gradient(112deg, {BG_CARD} 0%, {BG_ELEVATED} 100%);
+        border: 1px solid {DIVIDER}; border-left: 4px solid {ACCENT_TEAL};
+        border-radius: 15px; padding: 1.35rem 1.55rem; margin: 0.45rem 0 1.35rem;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.14);
     }}
     .gx-hero-eyebrow {{
-        font-family: {FONT_MONO}; font-size: 0.72em; letter-spacing: 0.14em;
-        color: {ACCENT_GOLD}; text-transform: uppercase; margin-bottom: 6px;
+        font-family: {FONT_MONO}; font-size: 0.67rem; font-weight: 700;
+        letter-spacing: 0.15em; color: {ACCENT_TEAL}; text-transform: uppercase; margin-bottom: 0.45rem;
     }}
-    .gx-hero-title {{ font-size: 1.8em; font-weight: 800; color: {TEXT_PRIMARY}; line-height: 1.15; }}
-    .gx-hero-subtitle {{ color: {TEXT_SECONDARY}; font-size: 0.92em; margin-top: 4px; }}
-    .gx-hero-chips {{ margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }}
+    .gx-hero-title {{ font-size: 1.85rem; font-weight: 800; color: {TEXT_PRIMARY}; line-height: 1.15; }}
+    .gx-hero-subtitle {{ color: {TEXT_SECONDARY}; font-size: 0.88rem; margin-top: 0.4rem; }}
+    .gx-hero-chips {{ margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }}
     .gx-chip {{
-        display: inline-block; background: rgba(255,255,255,0.05); border: 1px solid {DIVIDER};
-        color: {TEXT_SECONDARY}; font-family: {FONT_MONO}; font-size: 0.76em;
-        padding: 4px 12px; border-radius: 999px;
+        display: inline-block; background: rgba(255,255,255,0.045); border: 1px solid {DIVIDER};
+        color: {TEXT_SECONDARY}; font-family: {FONT_MONO}; font-size: 0.69rem;
+        padding: 0.34rem 0.65rem; border-radius: 7px;
     }}
 
-    /* ---- Section headers / block labels ----------------------------------- */
-    .gx-section {{
-        display: flex; align-items: baseline; gap: 10px;
-        border-bottom: 1px solid {DIVIDER}; padding-bottom: 10px; margin: 6px 0 18px 0;
+    /* ---- Filter controls ------------------------------------------------- */
+    .st-key-gi_filter_panel, .st-key-hsr_filter_panel {{
+        background: rgba(18,30,47,0.74); border: 1px solid {DIVIDER};
+        border-radius: 14px; padding: 0.75rem 1rem 0.4rem; margin: 0.6rem 0 1.35rem;
     }}
-    .gx-section-title {{ font-size: 1.15em; font-weight: 800; color: {TEXT_PRIMARY}; }}
-    .gx-section-subtitle {{ color: {TEXT_MUTED}; font-size: 0.82em; margin-left: 2px; }}
-    .block-label {{ display: flex; align-items: center; gap: 12px; margin: 26px 0 12px 0; }}
+    [data-testid="stWidgetLabel"] p {{ color: {TEXT_SECONDARY}; font-size: 0.78rem; font-weight: 600; }}
+    [data-baseweb="select"] > div {{ background: {BG_CARD_ALT}; border-color: {DIVIDER}; border-radius: 8px; }}
+    [data-baseweb="tag"] {{ background: rgba(85,184,173,0.16); border: 1px solid rgba(85,184,173,0.28); }}
+    [data-testid="stSlider"] [data-baseweb="slider"] {{ padding-top: 0.25rem; }}
+
+    /* ---- Section hierarchy ---------------------------------------------- */
+    .gx-section {{
+        display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.55rem;
+        border-bottom: 1px solid {DIVIDER}; padding-bottom: 0.65rem; margin: 0.4rem 0 1.05rem;
+    }}
+    .gx-section-title {{ font-size: 1.08rem; font-weight: 800; color: {TEXT_PRIMARY}; }}
+    .gx-section-subtitle {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-left: 0.1rem; }}
+    .block-label {{ display: flex; align-items: center; gap: 0.7rem; margin: 1.65rem 0 0.8rem; }}
     .block-label-text {{
-        font-family: {FONT_MONO}; font-size: 0.74em; letter-spacing: 0.16em;
+        font-family: {FONT_MONO}; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.14em;
         text-transform: uppercase; color: {TEXT_SECONDARY}; white-space: nowrap;
     }}
     .block-label-line {{ flex: 1; height: 1px; background: {DIVIDER}; }}
 
-    /* ---- Cards ------------------------------------------------------------ */
+    /* ---- KPI and content cards ------------------------------------------ */
     .gx-card {{
-        background-color: {BG_CARD}; border: 1px solid {DIVIDER};
-        border-radius: 12px; padding: 18px 22px; margin-bottom: 12px;
+        background: {BG_CARD}; border: 1px solid {DIVIDER};
+        border-radius: 12px; padding: 1.05rem 1.2rem; margin-bottom: 0.75rem;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.1);
     }}
-    .gx-card-title {{
-        font-family: {FONT_DISPLAY}; font-size: 1.02em; font-weight: 700;
-        color: {TEXT_PRIMARY}; margin-bottom: 12px;
-    }}
-    .gx-card-row {{ display: flex; justify-content: space-between; align-items: flex-end; padding: 8px 0 2px 0; }}
-    .gx-card-divider {{ border-top: 1px solid {DIVIDER}; margin-top: 12px; }}
-    .gx-card-label {{ color: {TEXT_SECONDARY}; font-size: 0.83em; line-height: 1.4; }}
-    .gx-card-sublabel {{ color: {TEXT_MUTED}; font-size: 0.85em; }}
-    .gx-card-value {{ font-family: {FONT_MONO}; font-size: 1.45em; font-weight: 700; color: {TEXT_PRIMARY}; }}
+    .gx-card-title {{ font-family: {FONT_DISPLAY}; font-size: 0.93rem; font-weight: 700;
+        color: {TEXT_PRIMARY}; margin-bottom: 0.8rem; }}
+    .gx-card-row {{ display: flex; justify-content: space-between; align-items: flex-end; gap: 0.75rem; padding: 0.5rem 0 0.15rem; }}
+    .gx-card-divider {{ border-top: 1px solid {DIVIDER}; margin-top: 0.75rem; }}
+    .gx-card-label {{ color: {TEXT_SECONDARY}; font-size: 0.78rem; line-height: 1.4; }}
+    .gx-card-sublabel {{ color: {TEXT_MUTED}; font-size: 0.72rem; }}
+    .gx-card-value {{ font-family: {FONT_MONO}; font-size: 1.35rem; font-weight: 700; color: {TEXT_PRIMARY}; }}
     .gx-gold {{ color: {ACCENT_GOLD}; }}
     .gx-purple {{ color: {ACCENT_PURPLE}; }}
-    .pity-bar-track {{ height: 7px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; margin-top: 8px; }}
+    .pity-bar-track {{ height: 6px; border-radius: 999px; background: rgba(255,255,255,0.075); overflow: hidden; margin-top: 0.5rem; }}
     .pity-bar-fill {{ height: 100%; border-radius: 999px; }}
 
     .kpi-card {{
-        background-color: {BG_CARD}; border: 1px solid {DIVIDER};
-        border-radius: 12px; padding: 14px 16px; min-height: 112px; margin-bottom: 12px;
+        background: linear-gradient(145deg, {BG_CARD} 0%, {BG_CARD_ALT} 100%);
+        border: 1px solid {DIVIDER}; border-radius: 12px; padding: 1rem 1.1rem;
+        min-height: 112px; margin-bottom: 0.7rem; box-shadow: 0 6px 18px rgba(0,0,0,0.09);
     }}
-    .kpi-label {{ color: {TEXT_SECONDARY}; font-size: 0.74em; letter-spacing: 0.06em; text-transform: uppercase; }}
-    .kpi-value {{ font-family: {FONT_MONO}; font-weight: 700; margin: 6px 0 4px 0; line-height: 1.2; overflow-wrap: anywhere; }}
-    .kpi-sub {{ color: {TEXT_MUTED}; font-size: 0.78em; }}
+    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.68rem; font-weight: 700;
+        letter-spacing: 0.09em; text-transform: uppercase; }}
+    .kpi-value {{ font-family: {FONT_MONO}; font-weight: 700; margin: 0.55rem 0 0.3rem;
+        line-height: 1.2; overflow-wrap: anywhere; }}
+    .kpi-sub {{ color: {TEXT_SECONDARY}; font-size: 0.72rem; line-height: 1.4; }}
 
     .gx-badge {{
-        display: inline-flex; align-items: center; font-family: {FONT_MONO}; font-size: 0.76em;
-        font-weight: 700; padding: 3px 11px; border-radius: 999px; margin-right: 6px;
+        display: inline-flex; align-items: center; font-family: {FONT_MONO}; font-size: 0.68rem;
+        font-weight: 700; padding: 0.22rem 0.55rem; border-radius: 6px; margin-right: 0.28rem;
     }}
-    .summary-list {{ color: {TEXT_SECONDARY}; font-size: 0.93em; line-height: 1.85; padding-left: 18px; margin: 0; }}
+    .summary-list {{ color: {TEXT_SECONDARY}; font-size: 0.86rem; line-height: 1.8; padding-left: 1.1rem; margin: 0; }}
+    .summary-list li {{ padding: 0.12rem 0; }}
     .summary-list b {{ color: {TEXT_PRIMARY}; }}
     .chart-note {{
-        color: {TEXT_SECONDARY}; font-size: 0.84em; line-height: 1.6; background: rgba(255,255,255,0.03);
-        border-left: 3px solid {ACCENT_GOLD}; border-radius: 0 8px 8px 0; padding: 8px 14px; margin: 8px 0 18px 0;
+        color: {TEXT_SECONDARY}; font-size: 0.78rem; line-height: 1.65;
+        background: rgba(85,184,173,0.055); border-left: 3px solid {ACCENT_TEAL};
+        border-radius: 0 8px 8px 0; padding: 0.65rem 0.85rem; margin: 0.6rem 0 1.1rem;
     }}
     .chart-note b {{ color: {TEXT_PRIMARY}; }}
 
-    /* ---- Streamlit widgets -------------------------------------------------- */
-    [data-testid="stMetric"] {{ background-color: {BG_CARD_ALT}; border: 1px solid {DIVIDER}; border-radius: 12px; padding: 14px 16px; }}
-    [data-testid="stMetricValue"] {{ font-family: {FONT_MONO}; color: {ACCENT_GOLD}; }}
-    [data-testid="stMetricLabel"] {{ color: {TEXT_SECONDARY}; }}
-    [data-baseweb="tab-list"] {{ gap: 4px; border-bottom: 1px solid {DIVIDER}; overflow-x: auto; }}
-    [data-baseweb="tab"] {{ font-family: {FONT_DISPLAY}; font-weight: 700; font-size: 0.92em; color: {TEXT_SECONDARY}; padding: 10px 14px; white-space: nowrap; }}
-    [data-baseweb="tab"][aria-selected="true"] {{ color: {ACCENT_GOLD}; }}
-    [data-baseweb="tab-highlight"] {{ background-color: {ACCENT_GOLD} !important; }}
-    [data-baseweb="tab-panel"] {{ padding-top: 18px; }}
-    [data-testid="stDataFrame"] {{ border: 1px solid {DIVIDER}; border-radius: 10px; overflow: hidden; }}
-    [data-testid="stExpander"] {{ border: 1px solid {DIVIDER}; border-radius: 12px; background-color: {BG_CARD}; }}
-    [data-testid="stPlotlyChart"] {{ background-color: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 12px; padding: 6px 8px 2px 8px; }}
-    [data-testid="stSidebar"] {{ background-color: {BG_CARD}; border-right: 1px solid {DIVIDER}; }}
-    [class*="st-key-"][class*="_filter_panel"] {{ position: sticky; top: 3.5rem; }}
-    .gx-side-title {{ font-size: 1.15em; font-weight: 800; color: {TEXT_PRIMARY}; }}
-    .gx-side-caption {{ color: {TEXT_MUTED}; font-size: 0.78em; margin-bottom: 6px; }}
-    .gx-side-section {{
-        font-family: {FONT_DISPLAY}; font-weight: 700; font-size: 0.82em; letter-spacing: 0.04em;
-        text-transform: uppercase; color: {TEXT_SECONDARY}; margin: 4px 0 6px 0;
+    /* ---- Streamlit widgets ---------------------------------------------- */
+    [data-testid="stMetric"] {{
+        background: {BG_CARD_ALT}; border: 1px solid {DIVIDER};
+        border-radius: 11px; padding: 0.8rem 0.95rem;
     }}
+    [data-testid="stMetricValue"] {{ font-family: {FONT_MONO}; color: {ACCENT_GOLD}; font-size: 1.35rem; }}
+    [data-testid="stMetricLabel"] {{ color: {TEXT_SECONDARY}; font-size: 0.75rem; }}
+    [data-baseweb="tab-list"] {{ gap: 0.25rem; border-bottom: 1px solid {DIVIDER}; overflow-x: auto; }}
+    [data-baseweb="tab"] {{ font-family: {FONT_DISPLAY}; font-weight: 700; font-size: 0.8rem;
+        color: {TEXT_MUTED}; padding: 0.65rem 0.8rem; white-space: nowrap; }}
+    [data-baseweb="tab"][aria-selected="true"] {{ color: {TEXT_PRIMARY}; }}
+    [data-baseweb="tab-highlight"] {{ background: {ACCENT_TEAL} !important; height: 2px; }}
+    [data-baseweb="tab-panel"] {{ padding-top: 1rem; }}
+    [data-testid="stDataFrame"] {{ border: 1px solid {DIVIDER}; border-radius: 10px; overflow: hidden; }}
+    [data-testid="stExpander"] {{ border: 1px solid {DIVIDER}; border-radius: 11px; background: rgba(18,30,47,0.55); }}
+    [data-testid="stPlotlyChart"] {{
+        background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 12px;
+        padding: 0.35rem 0.45rem 0.15rem; box-shadow: 0 5px 16px rgba(0,0,0,0.08);
+    }}
+    .stDownloadButton > button {{
+        background: rgba(85,184,173,0.12); color: {TEXT_PRIMARY};
+        border: 1px solid rgba(85,184,173,0.38); border-radius: 9px;
+        font-weight: 700; min-height: 2.65rem;
+    }}
+    .stDownloadButton > button:hover {{ background: rgba(85,184,173,0.2); border-color: {ACCENT_TEAL}; color: {TEXT_PRIMARY}; }}
+    [data-testid="stCaptionContainer"] {{ color: {TEXT_MUTED}; }}
     .gx-footer {{
-        text-align: center; color: {TEXT_MUTED}; font-size: 0.78em;
-        padding: 18px 0 6px 0; border-top: 1px solid {DIVIDER}; margin-top: 28px;
+        text-align: center; color: {TEXT_MUTED}; font-size: 0.72rem;
+        padding: 1.2rem 0 0.35rem; border-top: 1px solid {DIVIDER}; margin-top: 2.2rem;
+    }}
+
+    /* ---- Responsive spacing -------------------------------------------- */
+    @media (max-width: 900px) {{
+        .block-container {{ padding: 1.1rem 1rem 2rem; }}
+        .gx-hero {{ padding: 1.1rem 1.15rem; }}
+        .gx-hero-title {{ font-size: 1.5rem; }}
+        .gx-appbar {{ align-items: flex-start; flex-direction: column; }}
+    }}
+    @media (max-width: 600px) {{
+        .block-container {{ padding: 0.8rem 0.65rem 1.5rem; }}
+        .gx-chip {{ font-size: 0.64rem; }}
+        .gx-section {{ gap: 0.35rem; }}
+        .gx-section-subtitle {{ width: 100%; margin-left: 0; }}
     }}
     </style>
     """,
@@ -266,19 +337,27 @@ def show_df(data, **kwargs):
 
 def apply_layout(fig, title, xaxis_title=None, yaxis_title=None, height=380, legend=False, yaxis_range=None, **extra):
     """Shared chart design: typography, margins, gridlines and hover styling."""
-    yaxis_cfg = dict(title=yaxis_title, gridcolor=DIVIDER, zerolinecolor=DIVIDER)
+    axis_base = dict(
+        gridcolor=DIVIDER, zerolinecolor=DIVIDER, linecolor=DIVIDER,
+        tickfont=dict(family=FONT_BODY, size=10, color=TEXT_SECONDARY),
+        title_font=dict(family=FONT_BODY, size=10, color=TEXT_MUTED),
+    )
+    xaxis_cfg = {**axis_base, "title": xaxis_title}
+    yaxis_cfg = {**axis_base, "title": yaxis_title}
     if yaxis_range is not None:
         yaxis_cfg["range"] = yaxis_range
     fig.update_layout(
-        title=dict(text=title, font=dict(family=FONT_DISPLAY, size=15, color=TEXT_PRIMARY), x=0.01, xanchor="left"),
-        font=dict(family=FONT_BODY, color=TEXT_SECONDARY, size=12),
-        xaxis=dict(title=xaxis_title, gridcolor=DIVIDER, zerolinecolor=DIVIDER),
+        title=dict(text=title, font=dict(family=FONT_DISPLAY, size=14, color=TEXT_PRIMARY), x=0.015, xanchor="left"),
+        font=dict(family=FONT_BODY, color=TEXT_SECONDARY, size=11),
+        xaxis=xaxis_cfg,
         yaxis=yaxis_cfg,
         height=height,
-        margin=dict(l=8, r=8, t=54, b=8),
+        margin=dict(l=12, r=14, t=58, b=12),
         showlegend=legend,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(0,0,0,0)"),
-        hoverlabel=dict(bgcolor=BG_CARD_ALT, bordercolor=DIVIDER, font=dict(family=FONT_BODY, color=TEXT_PRIMARY)),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                    bgcolor="rgba(0,0,0,0)", font=dict(size=10, color=TEXT_SECONDARY)),
+        hoverlabel=dict(bgcolor=BG_CARD_ALT, bordercolor=DIVIDER,
+                        font=dict(family=FONT_BODY, color=TEXT_PRIMARY, size=11)),
         **extra,
     )
     return fig
@@ -424,7 +503,7 @@ def build_summary_stats(df: pd.DataFrame, cfg: GameConfig) -> dict:
 # Overview blocks
 # ============================================================================
 def render_hero(cfg: GameConfig, title: str, subtitle: str, chips: list):
-    chips_html = "".join(f'<span class="gx-chip">{c}</span>' for c in chips)
+    chips_html = "".join(f'<span class="gx-chip">{html.escape(str(c))}</span>' for c in chips)
     st.markdown(
         f"""
         <div class="gx-hero">
@@ -1008,87 +1087,115 @@ def render_game(cfg: GameConfig, path: Path):
         st.warning(f"No data file for {cfg.title}: `{path}`")
         st.info(f"Run `{PREPROCESS_HINT[cfg.key]}` to generate it, or pass `--{k}-data <file>` to this app.")
         return
+
     df = load_data(str(path), path.stat().st_mtime, cfg.key)
     if df.empty:
         st.warning(f"{path.name} contains no usable rows.")
         return
 
-    # ---- Layout: content (left/middle) | filters (right) --------------------
-    main_col, filter_col = st.columns([4, 1], gap="large")
     accounts = account_order(df)
 
-    with filter_col:
-        with st.container(border=True, key=f"{k}_filter_panel"):
-            st.markdown('<div class="gx-side-section">Filters</div>', unsafe_allow_html=True)
-            scope = st.radio(
-                "Account", accounts + (["All accounts"] if len(accounts) > 1 else []),
-                index=0, key=f"{k}_scope",          # default: main account (first in account_order)
-                help="Pick one account, or 'All accounts' to combine them.",
+    # ---- Full-width filter panel -------------------------------------------
+    with st.container(border=True, key=f"{k}_filter_panel"):
+        st.markdown('<div class="gx-side-section">Dashboard filters</div>', unsafe_allow_html=True)
+        account_col, banner_col, date_col = st.columns([1.15, 2.0, 2.5], gap="large")
+
+        with account_col:
+            scope = st.selectbox(
+                "Account",
+                accounts + (["All accounts"] if len(accounts) > 1 else []),
+                index=0,
+                key=f"{k}_scope",
+                help="Choose one account or combine all accounts.",
             )
-            # Switching account resets banners and date range to their defaults (everything).
-            if st.session_state.get(f"{k}_last_scope") != scope:
-                st.session_state.pop(f"{k}_banners", None)
-                st.session_state.pop(f"{k}_date", None)
-                st.session_state[f"{k}_last_scope"] = scope
 
-            scope_df = df if scope == "All accounts" else df[df["account"] == scope]
-            banner_options = order_banners(cfg, scope_df["banner_type"].dropna().astype(str).unique())
-            banner_filter = st.multiselect("Banners", banner_options, default=banner_options, key=f"{k}_banners")
+        # Changing account resets dependent filters to the complete data range.
+        if st.session_state.get(f"{k}_last_scope") != scope:
+            st.session_state.pop(f"{k}_banners", None)
+            st.session_state.pop(f"{k}_date", None)
+            st.session_state[f"{k}_last_scope"] = scope
 
-            min_d, max_d = scope_df["datetime"].min().date(), scope_df["datetime"].max().date()
+        scope_df = df if scope == "All accounts" else df[df["account"] == scope]
+        banner_options = order_banners(cfg, scope_df["banner_type"].dropna().astype(str).unique())
+        min_d, max_d = scope_df["datetime"].min().date(), scope_df["datetime"].max().date()
+
+        with banner_col:
+            banner_filter = st.multiselect(
+                "Banners", banner_options, default=banner_options, key=f"{k}_banners",
+                help="Select the banners included in the analysis.",
+            )
+
+        with date_col:
             if min_d == max_d:
-                st.caption(f"All data is from {min_d}")
+                st.caption("Date range")
+                st.markdown(f"**{min_d:%d %b %Y}** · Only available date")
                 date_range = (min_d, max_d)
             else:
-                date_range = st.slider("Date range", min_value=min_d, max_value=max_d, value=(min_d, max_d), key=f"{k}_date")
+                date_range = st.slider(
+                    "Date range", min_value=min_d, max_value=max_d,
+                    value=(min_d, max_d), key=f"{k}_date",
+                    format="DD MMM YYYY",
+                )
 
     display_df = scope_df[
-        (scope_df["datetime"].dt.date >= date_range[0]) & (scope_df["datetime"].dt.date <= date_range[1])
+        (scope_df["datetime"].dt.date >= date_range[0])
+        & (scope_df["datetime"].dt.date <= date_range[1])
         & scope_df["banner_type"].astype(str).isin(banner_filter)
     ]
 
-    with main_col:
-        if display_df.empty:
-            st.warning("No pulls match the current filters. Adjust the account, banners or date range.")
-            return
+    if display_df.empty:
+        st.warning("No pulls match the current filters. Adjust the account, banners or date range.")
+        return
 
-        single = display_df["account"].nunique() == 1
-        stats = build_summary_stats(display_df, cfg)
-        wr = f"{stats['win_rate']:.0f}% 5★ rate-up win rate" if stats["win_rate"] is not None else "no rate-up data"
-        render_hero(
-            cfg,
-            title=str(scope) if scope != "All accounts" else "All Accounts",
-            subtitle=("Single-account " if scope != "All accounts" else f"Combined view across {display_df['account'].nunique()} accounts · ")
-            + f"{cfg.pull_word.lower()} history and pity tracking",
-            chips=[f"{date_range[0]} → {date_range[1]}", f"{int(display_df['is_5star'].sum()):,} five-star",
-                   f"{len(display_df):,} {cfg.pull_word.lower()}s", wr],
-        )
+    single = display_df["account"].nunique() == 1
+    stats = build_summary_stats(display_df, cfg)
+    wr = f"{stats['win_rate']:.0f}% 5★ rate-up win rate" if stats["win_rate"] is not None else "no rate-up data"
+    render_hero(
+        cfg,
+        title=str(scope) if scope != "All accounts" else "All Accounts",
+        subtitle=("Single-account " if scope != "All accounts" else f"Combined view across {display_df['account'].nunique()} accounts · ")
+        + f"{cfg.pull_word.lower()} history and pity tracking",
+        chips=[
+            f"{date_range[0]} → {date_range[1]}",
+            f"{int(display_df['is_5star'].sum()):,} five-star",
+            f"{len(display_df):,} {cfg.pull_word.lower()}s",
+            wr,
+        ],
+    )
 
-        block_label("Overview")
-        render_key_parameters(cfg, stats)
+    block_label("Overview")
+    render_key_parameters(cfg, stats)
 
-        block_label("Banner Pity Meters")
-        render_pity_section(display_df, cfg)
-        st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
+    block_label("Banner Pity Meters")
+    render_pity_section(display_df, cfg)
+    st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
 
-        block_label("Summary")
-        render_executive_summary(display_df, cfg, stats, single)
+    block_label("Summary")
+    render_executive_summary(display_df, cfg, stats, single)
 
-        block_label("Detailed Analysis")
-        tabs = st.tabs(["Total Pulls", "Banner", "Timeline", "Pity 5★", "50-50", "Luck Score", "Top Items", "Latest 5★", "History"])
-        views = [insight_total_pull, insight_banner_performance, insight_timeline, insight_pity_distribution,
-                 insight_win_lose, insight_luck_score, insight_top_items, insight_latest_5star, insight_pull_history]
-        for tab, view in zip(tabs, views):
-            with tab:
-                view(display_df, cfg, k)
+    block_label("Detailed Analysis")
+    tabs = st.tabs([
+        "Total Pulls", "Banner", "Timeline", "Pity 5★", "50-50",
+        "Luck Score", "Top Items", "Latest 5★", "History",
+    ])
+    views = [
+        insight_total_pull, insight_banner_performance, insight_timeline,
+        insight_pity_distribution, insight_win_lose, insight_luck_score,
+        insight_top_items, insight_latest_5star, insight_pull_history,
+    ]
+    for tab, view in zip(tabs, views):
+        with tab:
+            view(display_df, cfg, k)
 
-        st.download_button(
-            label=f"Download filtered {cfg.key} data (CSV)",
-            data=display_df.to_csv(index=False),
-            file_name=f"{k}_gacha_data_{date_range[0]}_{date_range[1]}.csv",
-            mime="text/csv",
-            key=f"{k}_download",
-        )
+    st.download_button(
+        label=f"Download filtered {cfg.key} data (CSV)",
+        data=display_df.to_csv(index=False),
+        file_name=f"{k}_gacha_data_{date_range[0]}_{date_range[1]}.csv",
+        mime="text/csv",
+        key=f"{k}_download",
+        **STRETCH,
+    )
+
 
 
 # ============================================================================
@@ -1110,7 +1217,32 @@ def main():
         "HSR": Path(args.hsr_data) if args.hsr_data else DEFAULT_DATA["HSR"],
     }
 
-    game = st.sidebar.radio("Game", list(GAMES), format_func=lambda g: GAMES[g].title, key="game")
+    st.sidebar.markdown(
+        '<div class="gx-sidebar-brand">'
+        '<div class="gx-sidebar-mark">Personal analytics</div>'
+        '<div class="gx-sidebar-name">Gacha<br>Analytics</div>'
+        '<div class="gx-sidebar-caption">A consolidated view of pull history, pity and banner performance.</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.sidebar.markdown('<div class="gx-side-section">Workspace</div>', unsafe_allow_html=True)
+    game = st.sidebar.radio(
+        "Select game", list(GAMES), format_func=lambda g: GAMES[g].title,
+        key="game", label_visibility="collapsed",
+    )
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Each game is analysed independently. Filters apply only to the selected game.")
+
+    st.markdown(
+        '<div class="gx-appbar">'
+        '<div><div class="gx-app-kicker">Analytics workspace</div>'
+        '<div class="gx-app-title">Gacha performance overview</div>'
+        '<div class="gx-app-subtitle">Track account activity, banner efficiency and pull outcomes.</div></div>'
+        '<div class="gx-app-status">PERSONAL WORKSPACE</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
     render_game(GAMES[game], paths[game])
 
     st.markdown(
@@ -1118,6 +1250,7 @@ def main():
         'independent, unaffiliated with HoYoverse</div>',
         unsafe_allow_html=True,
     )
+
 
 
 if __name__ == "__main__":
