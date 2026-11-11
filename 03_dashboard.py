@@ -1013,6 +1013,7 @@ def render_game(cfg: GameConfig, path: Path):
     with st.container(border=True):
         scope = st.radio(
             "Account", accounts + (["All accounts"] if len(accounts) > 1 else []),
+            index=len(accounts) if len(accounts) > 1 else 0,   # default: All accounts
             horizontal=True, key=f"{k}_scope",
             help="Pick one account, or 'All accounts' to see them side by side.",
         )
@@ -1024,11 +1025,11 @@ def render_game(cfg: GameConfig, path: Path):
                 st.caption(f"All data is from {min_d}")
                 date_range = (min_d, max_d)
             else:
-                date_range = st.slider("Date range", min_value=min_d, max_value=max_d, value=(min_d, max_d), key=f"{k}_date")
+                date_range = st.slider("Date range", min_value=min_d, max_value=max_d, value=(min_d, max_d), key=f"{k}_date_{scope}")
         display_df = display_df[(display_df["datetime"].dt.date >= date_range[0]) & (display_df["datetime"].dt.date <= date_range[1])]
         with f2:
             options = order_banners(cfg, display_df["banner_type"].dropna().astype(str).unique())
-            banner_filter = st.multiselect("Banners", options, default=options, key=f"{k}_banners")
+            banner_filter = st.multiselect("Banners", options, default=options, key=f"{k}_banners_{scope}")
         display_df = display_df[display_df["banner_type"].astype(str).isin(banner_filter)]
 
     if display_df.empty:
