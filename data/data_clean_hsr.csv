@@ -1892,6 +1892,37 @@ hsr,Default,1,Character Event,2142,1890,2026-11-11 15:03:11,20024,Lingering Tear
 hsr,Default,1,Character Event,2142,1891,2026-11-11 16:35:36,20013,Passkey,light_cone,3,,4,49,0.0,,False,1794388200003224199,2026-11-11,2026-11,False,False,True
 hsr,Default,1,Character Event,2142,1892,2026-11-11 16:35:42,20012,Meshing Cogs,light_cone,3,,5,50,0.0,,False,1794388200003235899,2026-11-11,2026-11,False,False,True
 hsr,Default,1,Character Event,2142,1893,2026-11-11 16:53:02,20016,Mutual Demise,light_cone,3,,6,51,0.0,,False,1794388200004531799,2026-11-11,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1894,2026-11-12 05:34:21,20015,Multiplication,light_cone,3,,7,52,0.0,,False,1794435000000410499,2026-11-12,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1895,2026-11-12 05:34:28,20000,Arrows,light_cone,3,,8,53,0.0,,False,1794435000000412699,2026-11-12,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1896,2026-11-12 05:34:33,20010,Defense,light_cone,3,,9,54,0.0,,False,1794435000000412799,2026-11-12,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1897,2026-11-12 18:16:21,1009,Asta,character,4,10.0,10,55,3.0,Guaranteed,False,1794481800000286499,2026-11-12,2026-11,False,True,False
+hsr,Default,1,Character Event,2142,1898,2026-11-12 18:16:35,20001,Cornucopia,light_cone,3,,1,56,0.0,,False,1794481800000291399,2026-11-12,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1899,2026-11-13 04:20:31,20012,Meshing Cogs,light_cone,3,,2,57,0.0,,False,1794517800000108899,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1900,2026-11-13 04:20:36,20001,Cornucopia,light_cone,3,,3,58,0.0,,False,1794517800000109999,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1901,2026-11-13 04:20:39,20020,Sagacity,light_cone,3,,4,59,0.0,,False,1794517800000110199,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1902,2026-11-13 04:20:43,20007,Darting Arrow,light_cone,3,,5,60,0.0,,False,1794517800000110399,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1903,2026-11-13 04:20:48,20021,Shadowburn,light_cone,3,,6,61,0.0,,False,1794517800000111799,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1904,2026-11-13 04:22:32,20021,Shadowburn,light_cone,3,,7,62,0.0,,False,1794517800000123099,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1905,2026-11-13 06:33:10,20022,Reminiscence,light_cone,3,,8,63,0.0,,False,1794525000000333699,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1906,2026-11-13 06:35:17,21009,Landau's Choice,light_cone,4,9.0,9,64,4.0,Lose,False,1794525000000345199,2026-11-13,2026-11,False,True,False
+hsr,Default,1,Character Event,2142,1907,2026-11-13 06:35:21,20001,Cornucopia,light_cone,3,,1,65,0.0,,False,1794525000000345599,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1908,2026-11-13 10:08:23,20016,Mutual Demise,light_cone,3,,2,66,0.0,,False,1794539400000105599,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1909,2026-11-13 11:20:55,20023,Sneering,light_cone,3,,3,67,0.0,,False,1794543000000260199,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1910,2026-11-13 11:21:01,20001,Cornucopia,light_cone,3,,4,68,0.0,,False,1794543000000260599,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1911,2026-11-13 15:03:41,20009,Shattered Home,light_cone,3,,5,69,0.0,,False,1794557400000050299,2026-11-13,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1912,2026-11-14 06:24:22,20009,Shattered Home,light_cone,3,,6,70,0.0,,False,1794611400000139499,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1913,2026-11-14 06:24:26,20008,Fine Fruit,light_cone,3,,7,71,0.0,,False,1794611400000139599,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1914,2026-11-14 06:24:32,20024,Lingering Tear,light_cone,3,,8,72,0.0,,False,1794611400000139899,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1915,2026-11-14 08:12:47,1110,Lynx,character,4,9.0,9,73,3.0,Guaranteed,False,1794618600000153699,2026-11-14,2026-11,False,True,False
+hsr,Default,1,Character Event,2142,1916,2026-11-14 08:13:19,20021,Shadowburn,light_cone,3,,1,74,0.0,,False,1794618600000158699,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1917,2026-11-14 08:47:19,20011,Loop,light_cone,3,,2,75,0.0,,False,1794618600000512699,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1918,2026-11-14 10:26:41,1207,Yukong,character,4,3.0,3,76,2.0,Win,False,1794625800000305899,2026-11-14,2026-11,False,True,False
+hsr,Default,1,Character Event,2142,1919,2026-11-14 10:27:03,20000,Arrows,light_cone,3,,1,77,0.0,,False,1794625800000311099,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1920,2026-11-14 11:13:35,20019,Mediation,light_cone,3,,2,78,0.0,,False,1794629400000170699,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1921,2026-11-14 11:28:44,20006,Data Bank,light_cone,3,,3,79,0.0,,False,1794629400000390499,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1922,2026-11-14 12:01:31,20012,Meshing Cogs,light_cone,3,,4,80,0.0,,False,1794633000000017199,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Character Event,2142,1923,2026-11-14 12:06:13,1110,Lynx,character,4,5.0,5,81,2.0,Win,False,1794633000000093999,2026-11-14,2026-11,False,True,False
+hsr,Default,1,Character Event,2142,1924,2026-11-14 12:06:32,1511,Aeon ★ Aha,character,5,82.0,1,82,2.0,Win,False,1794633000000096799,2026-11-14,2026-11,True,False,False
 hsr,Default,1,Collab Character Event,5001,1,2025-07-12 06:05:54,20000,Arrows,light_cone,3,,1,1,0.0,,False,1752275400000034799,2025-07-12,2025-07,False,False,True
 hsr,Default,1,Collab Character Event,5001,2,2025-07-12 06:06:00,21045,After the Charmony Fall,light_cone,4,2.0,2,2,2.0,Win,False,1752275400000035199,2025-07-12,2025-07,False,True,False
 hsr,Default,1,Collab Character Event,5001,3,2025-07-12 06:06:14,20012,Meshing Cogs,light_cone,3,,1,3,0.0,,False,1752275400000037299,2025-07-12,2025-07,False,False,True
@@ -3159,6 +3190,10 @@ hsr,Default,1,Standard,1001,458,2026-11-01 08:08:29,20008,Fine Fruit,light_cone,
 hsr,Default,1,Standard,1001,459,2026-11-06 20:15:38,20011,Loop,light_cone,3,,7,9,0.0,,False,1793970600000032799,2026-11-06,2026-11,False,False,True
 hsr,Default,1,Standard,1001,460,2026-11-11 10:43:43,20015,Multiplication,light_cone,3,,8,10,0.0,,False,1794366600011854399,2026-11-11,2026-11,False,False,True
 hsr,Default,1,Standard,1001,461,2026-11-11 15:02:59,1210,Guinaifen,character,4,9.0,9,11,0.0,,False,1794384600000252899,2026-11-11,2026-11,False,True,False
+hsr,Default,1,Standard,1001,462,2026-11-13 06:34:58,23005,Moment of Victory,light_cone,5,12.0,1,12,0.0,,False,1794525000000343099,2026-11-13,2026-11,True,False,False
+hsr,Default,1,Standard,1001,463,2026-11-14 13:17:45,20000,Arrows,light_cone,3,,2,1,0.0,,False,1794636600000220999,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Standard,1001,464,2026-11-14 13:17:50,20012,Meshing Cogs,light_cone,3,,3,2,0.0,,False,1794636600000221399,2026-11-14,2026-11,False,False,True
+hsr,Default,1,Standard,1001,465,2026-11-14 13:17:54,20001,Cornucopia,light_cone,3,,4,3,0.0,,False,1794636600000223499,2026-11-14,2026-11,False,False,True
 hsr,second,4,Beginners,4001,1,2025-05-06 08:55:16,20009,Shattered Home,light_cone,3,,1,1,0.0,,False,1746493800000159012,2025-05-06,2025-05,False,False,True
 hsr,second,4,Beginners,4001,2,2025-05-06 08:55:16,20010,Defense,light_cone,3,,2,2,0.0,,False,1746493800000159112,2025-05-06,2025-05,False,False,True
 hsr,second,4,Beginners,4001,3,2025-05-06 08:55:16,20003,Amber,light_cone,3,,3,3,0.0,,False,1746493800000159212,2025-05-06,2025-05,False,False,True

@@ -1,10 +1,10 @@
 banner_type,rarity,win_50_50,count
-Character Event,4,Guaranteed,108
-Character Event,4,Lose,109
-Character Event,4,Win,89
+Character Event,4,Guaranteed,110
+Character Event,4,Lose,110
+Character Event,4,Win,91
 Character Event,5,Guaranteed,10
 Character Event,5,Lose,10
-Character Event,5,Win,16
+Character Event,5,Win,17
 Collab Character Event,4,Win,26
 Collab Character Event,5,Guaranteed,1
 Collab Character Event,5,Lose,1
