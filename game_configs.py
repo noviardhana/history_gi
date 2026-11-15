@@ -34,6 +34,9 @@ class GameConfig:
     # --- dashboard --------------------------------------------------------
     soft_pity: dict = field(default_factory=dict)         # per banner, pull where 5* rates start to ramp
     hard_pity_4: int = 10                                 # 4* guarantee
+    # per banner, consolidated 5* rate per pull in % (pity included). Used by the dashboard's "Actual vs Expected"
+    # and "Rolling Efficiency". A banner without an entry (e.g. Beginners) is left out of those two charts.
+    expected_rate_5: dict = field(default_factory=dict)
     pity_card_banners: list = field(default_factory=list) # banners shown as pity meters
     summary_banners: list = field(default_factory=list)   # [(banner, short label)] for the written summary
     currency: str = "Primogems"
@@ -69,6 +72,7 @@ GI = GameConfig(
     gear_category="weapon",
     gear_label="Weapon",
     soft_pity={"Character Event": 74, "Standard": 74, "Weapon Event": 63},
+    expected_rate_5={"Character Event": 1.6, "Weapon Event": 1.85, "Standard": 1.6},
     pity_card_banners=["Character Event", "Weapon Event", "Standard", "Beginners"],
     summary_banners=[("Character Event", "Character"), ("Weapon Event", "Weapon")],
     currency="Primogems",
@@ -126,6 +130,14 @@ HSR = GameConfig(
         "Standard": 74,
         "Light Cone Event": 66,
         "Collab Light Cone Event": 66,
+    },
+    # Consolidated rates as commonly published (character 1.6%, light cone 1.87%); collab banners assumed to match.
+    expected_rate_5={
+        "Character Event": 1.6,
+        "Collab Character Event": 1.6,
+        "Light Cone Event": 1.87,
+        "Collab Light Cone Event": 1.87,
+        "Standard": 1.6,
     },
     pity_card_banners=[
         "Character Event",

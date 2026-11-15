@@ -24,7 +24,7 @@ Usage:
     Custom data files:
     streamlit run 03_dashboard.py -- --gi-data data/data_clean_887284572.csv --hsr-data data/data_clean_hsr.csv
 
-Run from the project root so Streamlit picks up .streamlit/config.toml (dark navy theme).
+Run from the project root; CSV files beside this script are detected automatically.
 """
 
 import argparse
@@ -33,6 +33,7 @@ import html
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -43,32 +44,36 @@ from game_configs import GAMES, GameConfig
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-DEFAULT_DATA = {"GI": DATA_DIR / "data_clean.csv", "HSR": DATA_DIR / "data_clean_hsr.csv"}
+# Prefer the supplied CSVs beside this script; retain the conventional data/ fallback.
+DEFAULT_DATA = {
+    "GI": BASE_DIR / "data_clean.csv" if (BASE_DIR / "data_clean.csv").exists() else DATA_DIR / "data_clean.csv",
+    "HSR": BASE_DIR / "data_clean_hsr.csv" if (BASE_DIR / "data_clean_hsr.csv").exists() else DATA_DIR / "data_clean_hsr.csv",
+}
 PREPROCESS_HINT = {"GI": "01_preprocessing.py", "HSR": "01_preprocessing_hsr.py"}
 
 # ----------------------------------------------------------------------------
-# Design tokens — restrained dark analytics theme
+# Design tokens — dark navy theme matching .streamlit/config.toml
 # ----------------------------------------------------------------------------
 BG_APP = "#0b1220"
-BG_SIDEBAR = "#0e1828"
+BG_SIDEBAR = "#0b1220"
 BG_CARD = "#121e2f"
 BG_CARD_ALT = "#17263a"
 BG_ELEVATED = "#1b2b40"
 TEXT_PRIMARY = "#eef3f9"
-TEXT_SECONDARY = "#a8b6c8"
-TEXT_MUTED = "#78899f"
-DIVIDER = "rgba(157, 178, 202, 0.16)"
+TEXT_SECONDARY = "#c1cddd"
+TEXT_MUTED = "#91a3b9"
+DIVIDER = "rgba(238, 243, 249, 0.12)"
 
-ACCENT_GOLD = "#e9b65f"
-ACCENT_PURPLE = "#a78bfa"
-ACCENT_BLUE = "#69a9ec"
-ACCENT_TEAL = "#55b8ad"
-SUCCESS = "#57b88c"
-DANGER = "#e2767a"
+ACCENT_GOLD = "#f2a641"
+ACCENT_PURPLE = "#ad91e8"
+ACCENT_BLUE = "#79b8f2"
+ACCENT_TEAL = "#55c2b2"
+SUCCESS = "#54c78b"
+DANGER = "#ff7777"
 
-FONT_DISPLAY = "'Manrope', sans-serif"
-FONT_BODY = "'Inter', sans-serif"
-FONT_MONO = "'JetBrains Mono', monospace"
+FONT_DISPLAY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONT_BODY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONT_MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
 RARITY_COLORS = {3: ACCENT_BLUE, 4: ACCENT_PURPLE, 5: ACCENT_GOLD}
 RESULT_COLORS = {"Win": SUCCESS, "Lose": DANGER, "Guaranteed": ACCENT_TEAL}
@@ -96,13 +101,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Dark plotly template so every chart matches the app background
-_dark_template = copy.deepcopy(pio.templates["plotly_dark"])
-_dark_template.layout.paper_bgcolor = "rgba(0,0,0,0)"
-_dark_template.layout.plot_bgcolor = "rgba(0,0,0,0)"
-_dark_template.layout.font.color = TEXT_PRIMARY
-pio.templates["gacha_dark"] = _dark_template
-pio.templates.default = "gacha_dark"
+# Dark Plotly template aligned with the application palette.
+_clean_template = copy.deepcopy(pio.templates["plotly_dark"])
+_clean_template.layout.paper_bgcolor = "rgba(0,0,0,0)"
+_clean_template.layout.plot_bgcolor = "rgba(0,0,0,0)"
+_clean_template.layout.font.color = TEXT_SECONDARY
+_clean_template.layout.font.family = FONT_BODY
+_clean_template.layout.xaxis.gridcolor = DIVIDER
+_clean_template.layout.yaxis.gridcolor = DIVIDER
+_clean_template.layout.xaxis.zerolinecolor = DIVIDER
+_clean_template.layout.yaxis.zerolinecolor = DIVIDER
+pio.templates["gacha_clean"] = _clean_template
+pio.templates.default = "gacha_clean"
 
 # ----------------------------------------------------------------------------
 # Global styling
@@ -110,186 +120,100 @@ pio.templates.default = "gacha_dark"
 st.markdown(
     f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
-
     :root {{ color-scheme: dark; }}
-    html, body, [class*="css"] {{ font-family: {FONT_BODY}; }}
-    h1, h2, h3, h4, h5, .gx-hero-title, .gx-section-title, .gx-side-title {{
+    html, body, [class*="css"] {{ font-family: {FONT_BODY}; color: {TEXT_PRIMARY}; }}
+    h1, h2, h3, h4, h5, .gx-hero-title, .gx-section-title {{
         font-family: {FONT_DISPLAY} !important;
         letter-spacing: -0.025em;
     }}
 
-    /* ---- Application canvas --------------------------------------------- */
-    .stApp {{ background: linear-gradient(180deg, {BG_APP} 0%, #0e1726 100%); }}
-    .block-container {{ max-width: 1500px; padding: 1.6rem 2.1rem 2.6rem; }}
+    .stApp {{ background: {BG_APP}; }}
+    .block-container {{ max-width: 1440px; padding: 1.25rem 1.75rem 2.25rem; }}
     #MainMenu, footer {{ visibility: hidden; }}
     header[data-testid="stHeader"] {{ background: transparent; }}
-    [data-testid="stSidebar"] {{
-        background: {BG_SIDEBAR};
-        border-right: 1px solid {DIVIDER};
-    }}
-    [data-testid="stSidebar"] > div:first-child {{ padding-top: 1.25rem; }}
-    .gx-sidebar-brand {{ padding: 0.4rem 0.35rem 1.1rem; }}
-    .gx-sidebar-mark {{
-        color: {ACCENT_TEAL}; font-family: {FONT_MONO}; font-size: 0.68rem;
-        font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
-    }}
-    .gx-sidebar-name {{ color: {TEXT_PRIMARY}; font-size: 1.35rem; font-weight: 800; line-height: 1.2; margin-top: 0.25rem; }}
-    .gx-sidebar-caption {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-top: 0.35rem; line-height: 1.5; }}
-    .gx-side-section {{
-        color: {TEXT_MUTED}; font-family: {FONT_MONO}; font-size: 0.67rem;
-        font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
-        margin: 0.3rem 0 0.65rem;
-    }}
+    [data-testid="stSidebar"] {{ background: {BG_SIDEBAR}; border-right: 1px solid {DIVIDER}; }}
+    [data-testid="stSidebar"] > div:first-child {{ padding-top: 1rem; }}
+
+    .gx-sidebar-brand {{ padding: 0.35rem 0.35rem 1rem; }}
+    .gx-sidebar-mark {{ color: {ACCENT_TEAL}; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }}
+    .gx-sidebar-name {{ color: {TEXT_PRIMARY}; font-size: 1.28rem; font-weight: 750; line-height: 1.2; margin-top: 0.25rem; }}
+    .gx-sidebar-caption {{ color: {TEXT_MUTED}; font-size: 0.76rem; margin-top: 0.35rem; line-height: 1.5; }}
+    .gx-side-section {{ color: {TEXT_MUTED}; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0.3rem 0 0.55rem; }}
     [data-testid="stSidebar"] [data-testid="stRadio"] label p {{ color: {TEXT_SECONDARY}; font-weight: 600; }}
-    [data-testid="stSidebar"] [data-testid="stRadio"] label {{ padding: 0.24rem 0; }}
 
-    /* ---- Workspace heading ---------------------------------------------- */
-    .gx-appbar {{
-        display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
-        padding: 0.15rem 0 1.1rem; margin-bottom: 0.25rem;
-        border-bottom: 1px solid {DIVIDER};
-    }}
-    .gx-app-kicker {{ color: {ACCENT_TEAL}; font-family: {FONT_MONO}; font-size: 0.68rem;
-        font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }}
-    .gx-app-title {{ color: {TEXT_PRIMARY}; font-family: {FONT_DISPLAY}; font-size: 1.55rem;
-        font-weight: 800; letter-spacing: -0.035em; line-height: 1.2; margin-top: 0.22rem; }}
+    .gx-appbar {{ display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; padding: 0.2rem 0 0.9rem; margin-bottom: 0.25rem; border-bottom: 1px solid {DIVIDER}; }}
+    .gx-app-kicker {{ color: {ACCENT_TEAL}; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }}
+    .gx-app-title {{ color: {TEXT_PRIMARY}; font-family: {FONT_DISPLAY}; font-size: 1.5rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.2; margin-top: 0.2rem; }}
     .gx-app-subtitle {{ color: {TEXT_MUTED}; font-size: 0.82rem; margin-top: 0.25rem; }}
-    .gx-app-status {{ color: {TEXT_SECONDARY}; font-family: {FONT_MONO}; font-size: 0.7rem;
-        border: 1px solid {DIVIDER}; background: rgba(255,255,255,0.025);
-        border-radius: 999px; padding: 0.38rem 0.75rem; white-space: nowrap; }}
+    .gx-app-status {{ color: {TEXT_SECONDARY}; font-size: 0.66rem; font-weight: 650; border: 1px solid {DIVIDER}; background: #121e2f; border-radius: 6px; padding: 0.32rem 0.55rem; white-space: nowrap; }}
 
-    /* ---- Hero ------------------------------------------------------------ */
-    .gx-hero {{
-        background: linear-gradient(112deg, {BG_CARD} 0%, {BG_ELEVATED} 100%);
-        border: 1px solid {DIVIDER}; border-left: 4px solid {ACCENT_TEAL};
-        border-radius: 15px; padding: 1.35rem 1.55rem; margin: 0.45rem 0 1.35rem;
-        box-shadow: 0 12px 28px rgba(0,0,0,0.14);
-    }}
-    .gx-hero-eyebrow {{
-        font-family: {FONT_MONO}; font-size: 0.67rem; font-weight: 700;
-        letter-spacing: 0.15em; color: {ACCENT_TEAL}; text-transform: uppercase; margin-bottom: 0.45rem;
-    }}
-    .gx-hero-title {{ font-size: 1.85rem; font-weight: 800; color: {TEXT_PRIMARY}; line-height: 1.15; }}
-    .gx-hero-subtitle {{ color: {TEXT_SECONDARY}; font-size: 0.88rem; margin-top: 0.4rem; }}
-    .gx-hero-chips {{ margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }}
-    .gx-chip {{
-        display: inline-block; background: rgba(255,255,255,0.045); border: 1px solid {DIVIDER};
-        color: {TEXT_SECONDARY}; font-family: {FONT_MONO}; font-size: 0.69rem;
-        padding: 0.34rem 0.65rem; border-radius: 7px;
-    }}
+    .gx-hero {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-left: 3px solid {ACCENT_TEAL}; border-radius: 10px; padding: 1.05rem 1.25rem; margin: 0.55rem 0 1.15rem; }}
+    .gx-hero-eyebrow {{ font-size: 0.65rem; font-weight: 700; letter-spacing: 0.11em; color: {ACCENT_TEAL}; text-transform: uppercase; margin-bottom: 0.4rem; }}
+    .gx-hero-title {{ font-size: 1.65rem; font-weight: 750; color: {TEXT_PRIMARY}; line-height: 1.15; }}
+    .gx-hero-subtitle {{ color: {TEXT_SECONDARY}; font-size: 0.84rem; margin-top: 0.35rem; }}
+    .gx-hero-chips {{ margin-top: 0.8rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }}
+    .gx-chip {{ display: inline-block; background: {BG_CARD_ALT}; border: 1px solid {DIVIDER}; color: {TEXT_SECONDARY}; font-size: 0.68rem; padding: 0.3rem 0.55rem; border-radius: 6px; }}
 
-    /* ---- Filter controls ------------------------------------------------- */
-    .st-key-gi_filter_panel, .st-key-hsr_filter_panel {{
-        background: rgba(18,30,47,0.74); border: 1px solid {DIVIDER};
-        border-radius: 14px; padding: 0.75rem 1rem 0.4rem; margin: 0.6rem 0 1.35rem;
-    }}
-    [data-testid="stWidgetLabel"] p {{ color: {TEXT_SECONDARY}; font-size: 0.78rem; font-weight: 600; }}
-    [data-baseweb="select"] > div {{ background: {BG_CARD_ALT}; border-color: {DIVIDER}; border-radius: 8px; }}
-    [data-baseweb="tag"] {{ background: rgba(85,184,173,0.16); border: 1px solid rgba(85,184,173,0.28); }}
-    [data-testid="stSlider"] [data-baseweb="slider"] {{ padding-top: 0.25rem; }}
+    .st-key-gi_filter_panel, .st-key-hsr_filter_panel {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 10px; padding: 0.55rem 0.85rem 0.25rem; margin: 0.55rem 0 1.15rem; }}
+    [data-testid="stWidgetLabel"] p {{ color: {TEXT_SECONDARY}; font-size: 0.76rem; font-weight: 600; }}
+    [data-baseweb="select"] > div {{ background: #121e2f; border-color: {DIVIDER}; border-radius: 7px; }}
+    [data-baseweb="tag"] {{ background: #1d3a43; border: 1px solid #315765; color: #bce8df; }}
+    [data-testid="stSlider"] [data-baseweb="slider"] {{ padding-top: 0.2rem; }}
 
-    /* ---- Section hierarchy ---------------------------------------------- */
-    .gx-section {{
-        display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.55rem;
-        border-bottom: 1px solid {DIVIDER}; padding-bottom: 0.65rem; margin: 0.4rem 0 1.05rem;
-    }}
-    .gx-section-title {{ font-size: 1.08rem; font-weight: 800; color: {TEXT_PRIMARY}; }}
-    .gx-section-subtitle {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-left: 0.1rem; }}
-    .block-label {{ display: flex; align-items: center; gap: 0.7rem; margin: 1.65rem 0 0.8rem; }}
-    .block-label-text {{
-        font-family: {FONT_MONO}; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.14em;
-        text-transform: uppercase; color: {TEXT_SECONDARY}; white-space: nowrap;
-    }}
+    .gx-section {{ display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; border-bottom: 1px solid {DIVIDER}; padding-bottom: 0.55rem; margin: 0.35rem 0 0.8rem; }}
+    .gx-section-title {{ font-size: 1.02rem; font-weight: 750; color: {TEXT_PRIMARY}; }}
+    .gx-section-subtitle {{ color: {TEXT_MUTED}; font-size: 0.75rem; margin-left: 0.1rem; }}
+    .block-label {{ display: flex; align-items: center; gap: 0.6rem; margin: 1.35rem 0 0.65rem; }}
+    .block-label-text {{ font-size: 0.66rem; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase; color: {TEXT_MUTED}; white-space: nowrap; }}
     .block-label-line {{ flex: 1; height: 1px; background: {DIVIDER}; }}
 
-    /* ---- KPI and content cards ------------------------------------------ */
-    .gx-card {{
-        background: {BG_CARD}; border: 1px solid {DIVIDER};
-        border-radius: 12px; padding: 1.05rem 1.2rem; margin-bottom: 0.75rem;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.1);
-    }}
-    .gx-card-title {{ font-family: {FONT_DISPLAY}; font-size: 0.93rem; font-weight: 700;
-        color: {TEXT_PRIMARY}; margin-bottom: 0.8rem; }}
-    .gx-card-row {{ display: flex; justify-content: space-between; align-items: flex-end; gap: 0.75rem; padding: 0.5rem 0 0.15rem; }}
-    .gx-card-divider {{ border-top: 1px solid {DIVIDER}; margin-top: 0.75rem; }}
-    .gx-card-label {{ color: {TEXT_SECONDARY}; font-size: 0.78rem; line-height: 1.4; }}
-    .gx-card-sublabel {{ color: {TEXT_MUTED}; font-size: 0.72rem; }}
-    .gx-card-value {{ font-family: {FONT_MONO}; font-size: 1.35rem; font-weight: 700; color: {TEXT_PRIMARY}; }}
+    .gx-card {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 9px; padding: 0.9rem 1rem; margin-bottom: 0.65rem; }}
+    .gx-card-title {{ font-family: {FONT_DISPLAY}; font-size: 0.88rem; font-weight: 700; color: {TEXT_PRIMARY}; margin-bottom: 0.65rem; }}
+    .gx-card-row {{ display: flex; justify-content: space-between; align-items: flex-end; gap: 0.75rem; padding: 0.42rem 0 0.12rem; }}
+    .gx-card-divider {{ border-top: 1px solid {DIVIDER}; margin-top: 0.65rem; }}
+    .gx-card-label {{ color: {TEXT_SECONDARY}; font-size: 0.75rem; line-height: 1.4; }}
+    .gx-card-sublabel {{ color: {TEXT_MUTED}; font-size: 0.68rem; }}
+    .gx-card-value {{ font-family: {FONT_MONO}; font-size: 1.22rem; font-weight: 700; color: {TEXT_PRIMARY}; }}
     .gx-gold {{ color: {ACCENT_GOLD}; }}
     .gx-purple {{ color: {ACCENT_PURPLE}; }}
-    .pity-bar-track {{ height: 6px; border-radius: 999px; background: rgba(255,255,255,0.075); overflow: hidden; margin-top: 0.5rem; }}
+    .pity-bar-track {{ height: 5px; border-radius: 999px; background: #26374c; overflow: hidden; margin-top: 0.45rem; }}
     .pity-bar-fill {{ height: 100%; border-radius: 999px; }}
 
-    .kpi-card {{
-        background: linear-gradient(145deg, {BG_CARD} 0%, {BG_CARD_ALT} 100%);
-        border: 1px solid {DIVIDER}; border-radius: 12px; padding: 1rem 1.1rem;
-        min-height: 112px; margin-bottom: 0.7rem; box-shadow: 0 6px 18px rgba(0,0,0,0.09);
-    }}
-    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.68rem; font-weight: 700;
-        letter-spacing: 0.09em; text-transform: uppercase; }}
-    .kpi-value {{ font-family: {FONT_MONO}; font-weight: 700; margin: 0.55rem 0 0.3rem;
-        line-height: 1.2; overflow-wrap: anywhere; }}
-    .kpi-sub {{ color: {TEXT_SECONDARY}; font-size: 0.72rem; line-height: 1.4; }}
-
-    .gx-badge {{
-        display: inline-flex; align-items: center; font-family: {FONT_MONO}; font-size: 0.68rem;
-        font-weight: 700; padding: 0.22rem 0.55rem; border-radius: 6px; margin-right: 0.28rem;
-    }}
-    .summary-list {{ color: {TEXT_SECONDARY}; font-size: 0.86rem; line-height: 1.8; padding-left: 1.1rem; margin: 0; }}
-    .summary-list li {{ padding: 0.12rem 0; }}
+    .kpi-card {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 9px; padding: 0.85rem 0.95rem; min-height: 100px; margin-bottom: 0.6rem; }}
+    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }}
+    .kpi-value {{ font-family: {FONT_MONO}; font-weight: 700; margin: 0.5rem 0 0.25rem; line-height: 1.2; overflow-wrap: anywhere; }}
+    .kpi-sub {{ color: {TEXT_SECONDARY}; font-size: 0.69rem; line-height: 1.4; }}
+    .gx-badge {{ display: inline-flex; align-items: center; font-size: 0.65rem; font-weight: 700; padding: 0.18rem 0.42rem; border-radius: 5px; margin-right: 0.22rem; }}
+    .summary-list {{ color: {TEXT_SECONDARY}; font-size: 0.82rem; line-height: 1.7; padding-left: 1.05rem; margin: 0; }}
+    .summary-list li {{ padding: 0.1rem 0; }}
     .summary-list b {{ color: {TEXT_PRIMARY}; }}
-    .chart-note {{
-        color: {TEXT_SECONDARY}; font-size: 0.78rem; line-height: 1.65;
-        background: rgba(85,184,173,0.055); border-left: 3px solid {ACCENT_TEAL};
-        border-radius: 0 8px 8px 0; padding: 0.65rem 0.85rem; margin: 0.6rem 0 1.1rem;
-    }}
+    .chart-note {{ color: {TEXT_SECONDARY}; font-size: 0.74rem; line-height: 1.55; background: #17263a; border-left: 2px solid {ACCENT_TEAL}; border-radius: 0 6px 6px 0; padding: 0.5rem 0.7rem; margin: 0.45rem 0 0.85rem; }}
     .chart-note b {{ color: {TEXT_PRIMARY}; }}
+    .gx-chart-guide {{ color: {TEXT_MUTED}; font-size: 0.72rem; line-height: 1.45; margin: 0.25rem 0 0.8rem; padding-left: 0.6rem; border-left: 2px solid #40536a; }}
+    .gx-chart-guide b {{ color: {TEXT_SECONDARY}; font-weight: 700; }}
 
-    /* ---- Streamlit widgets ---------------------------------------------- */
-    [data-testid="stMetric"] {{
-        background: {BG_CARD_ALT}; border: 1px solid {DIVIDER};
-        border-radius: 11px; padding: 0.8rem 0.95rem;
-    }}
-    [data-testid="stMetricValue"] {{ font-family: {FONT_MONO}; color: {ACCENT_GOLD}; font-size: 1.35rem; }}
-    [data-testid="stMetricLabel"] {{ color: {TEXT_SECONDARY}; font-size: 0.75rem; }}
-    [data-baseweb="tab-list"] {{ gap: 0.25rem; border-bottom: 1px solid {DIVIDER}; overflow-x: auto; }}
-    [data-baseweb="tab"] {{ font-family: {FONT_DISPLAY}; font-weight: 700; font-size: 0.8rem;
-        color: {TEXT_MUTED}; padding: 0.65rem 0.8rem; white-space: nowrap; }}
+    [data-testid="stMetric"] {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 8px; padding: 0.65rem 0.8rem; }}
+    [data-testid="stMetricValue"] {{ font-family: {FONT_MONO}; color: {ACCENT_BLUE}; font-size: 1.25rem; }}
+    [data-testid="stMetricLabel"] {{ color: {TEXT_SECONDARY}; font-size: 0.72rem; }}
+    [data-baseweb="tab-list"] {{ gap: 0.2rem; border-bottom: 1px solid {DIVIDER}; overflow-x: auto; }}
+    [data-baseweb="tab"] {{ font-family: {FONT_DISPLAY}; font-weight: 650; font-size: 0.78rem; color: {TEXT_MUTED}; padding: 0.55rem 0.75rem; white-space: nowrap; }}
     [data-baseweb="tab"][aria-selected="true"] {{ color: {TEXT_PRIMARY}; }}
     [data-baseweb="tab-highlight"] {{ background: {ACCENT_TEAL} !important; height: 2px; }}
-    [data-baseweb="tab-panel"] {{ padding-top: 1rem; }}
-    [data-testid="stDataFrame"] {{ border: 1px solid {DIVIDER}; border-radius: 10px; overflow: hidden; }}
-    [data-testid="stExpander"] {{ border: 1px solid {DIVIDER}; border-radius: 11px; background: rgba(18,30,47,0.55); }}
-    [data-testid="stPlotlyChart"] {{
-        background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 12px;
-        padding: 0.35rem 0.45rem 0.15rem; box-shadow: 0 5px 16px rgba(0,0,0,0.08);
-    }}
-    .stDownloadButton > button {{
-        background: rgba(85,184,173,0.12); color: {TEXT_PRIMARY};
-        border: 1px solid rgba(85,184,173,0.38); border-radius: 9px;
-        font-weight: 700; min-height: 2.65rem;
-    }}
-    .stDownloadButton > button:hover {{ background: rgba(85,184,173,0.2); border-color: {ACCENT_TEAL}; color: {TEXT_PRIMARY}; }}
+    [data-baseweb="tab-panel"] {{ padding-top: 0.8rem; }}
+    [data-baseweb="tab-panel"] [data-baseweb="tab-list"] {{ border-bottom: none; gap: 0.3rem; padding-bottom: 0.1rem; }}
+    [data-baseweb="tab-panel"] [data-baseweb="tab"] {{ background: #121e2f; border: 1px solid {DIVIDER}; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 0.72rem; }}
+    [data-baseweb="tab-panel"] [data-baseweb="tab"][aria-selected="true"] {{ background: #22364d; border-color: #405b76; color: {TEXT_PRIMARY}; }}
+    [data-baseweb="tab-panel"] [data-baseweb="tab-highlight"], [data-baseweb="tab-panel"] [data-baseweb="tab-border"] {{ display: none; }}
+    [data-testid="stDataFrame"] {{ border: 1px solid {DIVIDER}; border-radius: 8px; overflow: hidden; }}
+    [data-testid="stExpander"] {{ border: 1px solid {DIVIDER}; border-radius: 8px; background: {BG_CARD}; }}
+    [data-testid="stPlotlyChart"] {{ background: {BG_CARD}; border: 1px solid {DIVIDER}; border-radius: 9px; padding: 0.2rem 0.25rem 0; }}
+    .stDownloadButton > button {{ background: #22364d; color: {TEXT_PRIMARY}; border: 1px solid #405b76; border-radius: 7px; font-weight: 650; min-height: 2.45rem; }}
+    .stDownloadButton > button:hover {{ background: #2a4059; border-color: {ACCENT_BLUE}; color: {TEXT_PRIMARY}; }}
     [data-testid="stCaptionContainer"] {{ color: {TEXT_MUTED}; }}
-    .gx-footer {{
-        text-align: center; color: {TEXT_MUTED}; font-size: 0.72rem;
-        padding: 1.2rem 0 0.35rem; border-top: 1px solid {DIVIDER}; margin-top: 2.2rem;
-    }}
+    .gx-footer {{ text-align: center; color: {TEXT_MUTED}; font-size: 0.68rem; padding: 1rem 0 0.3rem; border-top: 1px solid {DIVIDER}; margin-top: 1.8rem; }}
 
-    /* ---- Responsive spacing -------------------------------------------- */
-    @media (max-width: 900px) {{
-        .block-container {{ padding: 1.1rem 1rem 2rem; }}
-        .gx-hero {{ padding: 1.1rem 1.15rem; }}
-        .gx-hero-title {{ font-size: 1.5rem; }}
-        .gx-appbar {{ align-items: flex-start; flex-direction: column; }}
-    }}
-    @media (max-width: 600px) {{
-        .block-container {{ padding: 0.8rem 0.65rem 1.5rem; }}
-        .gx-chip {{ font-size: 0.64rem; }}
-        .gx-section {{ gap: 0.35rem; }}
-        .gx-section-subtitle {{ width: 100%; margin-left: 0; }}
-    }}
+    @media (max-width: 900px) {{ .block-container {{ padding: 1rem 1rem 1.8rem; }} .gx-hero {{ padding: 0.95rem 1rem; }} .gx-appbar {{ align-items: flex-start; flex-direction: column; }} }}
+    @media (max-width: 600px) {{ .block-container {{ padding: 0.75rem 0.6rem 1.35rem; }} .gx-chip {{ font-size: 0.63rem; }} .gx-section {{ gap: 0.3rem; }} .gx-section-subtitle {{ width: 100%; margin-left: 0; }} }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -299,10 +223,38 @@ st.markdown(
 # ============================================================================
 # Presentation helpers
 # ============================================================================
+SECTION_MEANINGS = {
+    "Total Pulls & Account Progress": "Summarizes pull volume and rarity composition to compare account activity.",
+    "5★ Pity Distribution": "Shows how many pulls were needed to obtain each 5★ item.",
+    "Hazard Rate": "Estimates the chance of obtaining a 5★ at each pity level, provided one has not appeared yet.",
+    "4★ Pity Distribution": "Shows the number of pulls required to obtain each 4★ item.",
+    "5★ Pity Timeline": "Tracks the pity count for each 5★ result over time; colors distinguish rate-up outcomes.",
+    "5★ Actual vs Expected": "Compares the actual number of 5★ results with the estimate based on the banner consolidated rate.",
+    "Rolling Pulls per 5★": "Tracks the moving average pity across recent 5★ results to show changes in efficiency.",
+    "50-50 Win/Lose": "Compares wins, losses, guarantees, and the rate-up win rate.",
+    "Banner Performance": "Compares pull volume, 5★ acquisition efficiency, and rate-up success across banners.",
+    "Luck Score": "Combines pity efficiency (60%) and rate-up success (40%); a score of 50 is neutral.",
+    "Pull History": "Lists obtained 5★ and 4★ items, with banner and item-type filters.",
+}
+
+
+def section_meaning(title: str, fallback: str = "") -> str:
+    if title in SECTION_MEANINGS:
+        return SECTION_MEANINGS[title]
+    if title.endswith(" Timeline") and title.split(" ", 1)[0] in {"Wish", "Warp"}:
+        return "Shows monthly pull activity and each banner’s contribution."
+    if title.startswith("Top Character &"):
+        return "Summarizes the most frequently obtained 4★–5★ characters and weapons / Light Cones."
+    if title.startswith("Latest 5★"):
+        return "Shows the latest 5★ results for each banner, sorted newest first."
+    return fallback
+
+
 def section_header(title: str, subtitle: str = ""):
-    sub = f'<span class="gx-section-subtitle">{subtitle}</span>' if subtitle else ""
+    meaning = section_meaning(title, subtitle)
+    sub = f'<span class="gx-section-subtitle">What it shows: {html.escape(meaning)}</span>' if meaning else ""
     st.markdown(
-        f'<div class="gx-section"><span class="gx-section-title">{title}</span>{sub}</div>',
+        f'<div class="gx-section"><span class="gx-section-title">{html.escape(title)}</span>{sub}</div>',
         unsafe_allow_html=True,
     )
 
@@ -326,9 +278,46 @@ def badge(text: str, color: str) -> str:
     )
 
 
+CHART_MEANINGS = {
+    "total_pull": "The share of 3★, 4★, and 5★ results in each account’s pulls; compares rarity mix rather than raw volume.",
+    "timeline": "Monthly pulls by banner; stacked bars show each banner’s contribution.",
+    "timeline_5star": "The number of 5★ items obtained each month, broken down by banner.",
+    "timeline_4star": "The number of 4★ items obtained each month, broken down by banner.",
+    "pity_cdf": "The cumulative share of 5★ results obtained by each pity level; a faster-rising curve means results tend to arrive sooner.",
+    "pity_timeline": "Each point represents one 5★ result; the X-axis shows the date and the Y-axis shows the pity count when it was obtained.",
+    "exp_cum": "Compares cumulative actual 5★ results with the estimate based on the configured official rates.",
+    "exp_gap": "Actual minus expected; a positive value means more 5★ results than expected by that date.",
+    "rolling": "Dots show the pity count for each 5★; the line shows the moving average across the latest N results.",
+    "wl_stack": "Rate-up outcome breakdown: Win, Lose, and Guaranteed for each banner and rarity.",
+    "wl_rate": "Win rate is calculated from Win/Lose outcomes only; the marker shows the official 5★ rate-up chance.",
+    "luck": "Compares pity efficiency, rate-up success, and Luck Score by account; 50 is the neutral point.",
+    "banner_total": "Total pulls recorded for each banner; shows how activity is distributed.",
+    "banner_eff": "Average pulls required to obtain one 5★; lower values indicate greater efficiency.",
+    "banner_wr": "The 5★ rate-up win percentage among Win/Lose outcomes; the marker is the banner’s official baseline.",
+}
+
+
+def chart_meaning(name: str) -> str:
+    if name in CHART_MEANINGS:
+        return CHART_MEANINGS[name]
+    if name.startswith("pity4_"):
+        return "Distribution of pulls required to obtain a 4★ on this banner; the dashed line marks the average."
+    if name.startswith("pity_"):
+        return "Distribution of pulls required to obtain a 5★ on this banner; the dashed line marks the average and hard pity."
+    if name.startswith("hazard_"):
+        return "Observed chance of obtaining a 5★ in each pity bucket; faded bars indicate smaller at-risk samples."
+    if name.startswith("top_"):
+        return "Most frequently obtained items; bar length shows the number obtained and color indicates rarity."
+    return "This chart summarizes data matching the account, banner, and date filters above."
+
+
 def show(fig, k: str, name: str):
-    """Render a Plotly figure with a unique key (both games render on the same page)."""
+    """Render a Plotly figure and a short English guide, with a unique chart key."""
     st.plotly_chart(fig, key=f"{k}_{name}", **STRETCH)
+    st.markdown(
+        f'<div class="gx-chart-guide"><b>What it shows:</b> {html.escape(chart_meaning(name))}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def show_df(data, **kwargs):
@@ -386,6 +375,13 @@ def kpi_card(label: str, value: str, sub: str = "", color: str = ACCENT_GOLD, va
 # ============================================================================
 # Data + domain helpers (all driven by GameConfig)
 # ============================================================================
+
+
+def pull_plural(word: str) -> str:
+    """Return a readable plural for the game's pull noun (Wish -> Wishes, Warp -> Warps)."""
+    return "Wishes" if word.lower() == "wish" else (word + "es" if word.lower().endswith(("s", "sh", "ch", "x", "z")) else word + "s")
+
+
 def order_banners(cfg: GameConfig, items) -> list:
     """Banner names in the game's canonical order, unexpected names last."""
     items = list(items)
@@ -519,9 +515,9 @@ def render_hero(cfg: GameConfig, title: str, subtitle: str, chips: list):
 
 def render_key_parameters(cfg: GameConfig, stats: dict):
     w = cfg.pull_word
-    cards = [kpi_card(f"Total {w}s", f"{stats['total']:,}", f"≈ {stats['total'] * cfg.pull_cost:,} {cfg.currency}")]
+    cards = [kpi_card(f"Total {pull_plural(w)}", f"{stats['total']:,}", f"≈ {stats['total'] * cfg.pull_cost:,} {cfg.currency}")]
 
-    per5 = f"1 per {stats['per_5']:.1f} {w.lower()}s" if stats["per_5"] else "no 5★ yet"
+    per5 = f"1 per {stats['per_5']:.1f} {pull_plural(w).lower()}" if stats["per_5"] else "no 5★ yet"
     cards.append(kpi_card("5★ Obtained", f"{stats['n5']:,}", f"{per5} · 4★: {stats['n4']:,}"))
 
     avg = f"{stats['avg_pity_5']:.1f}" if stats["avg_pity_5"] is not None else "-"
@@ -581,7 +577,7 @@ def render_pity_cards(df: pd.DataFrame, cfg: GameConfig):
                     <div class="gx-card" style="border-top:3px solid {top};">
                         <div class="gx-card-title">{banner}</div>
                         <div class="gx-card-row">
-                            <div class="gx-card-label">Lifetime {cfg.pull_word}s</div>
+                            <div class="gx-card-label">Lifetime {pull_plural(cfg.pull_word)}</div>
                             <div class="gx-card-value">{lifetime:,}</div>
                         </div>
                         <div class="gx-card-divider"></div>
@@ -619,7 +615,7 @@ def render_pity_section(df: pd.DataFrame, cfg: GameConfig):
 def render_executive_summary(df: pd.DataFrame, cfg: GameConfig, stats: dict, single_account: bool):
     items = []
     start, end = df["datetime"].min().strftime("%b %Y"), df["datetime"].max().strftime("%b %Y")
-    overall = f"<b>Period:</b> {start} – {end} · 5★ rate {stats['rate_5']:.2f}% ({stats['n5']} of {stats['total']:,} {cfg.pull_word.lower()}s)"
+    overall = f"<b>Period:</b> {start} – {end} · 5★ rate {stats['rate_5']:.2f}% ({stats['n5']} of {stats['total']:,} {pull_plural(cfg.pull_word).lower()})"
     if stats["avg_pity_5"] is not None:
         overall += f" · avg 5★ pity {stats['avg_pity_5']:.1f}"
     items.append(overall + ".")
@@ -640,13 +636,13 @@ def render_executive_summary(df: pd.DataFrame, cfg: GameConfig, stats: dict, sin
         best, worst = ppf.idxmin(), ppf.idxmax()
         if best != worst:
             items.append(
-                f"<b>Banner efficiency:</b> {best} is the most efficient ({ppf[best]:.1f} {cfg.pull_word.lower()}s per 5★), "
+                f"<b>Banner efficiency:</b> {best} is the most efficient ({ppf[best]:.1f} {pull_plural(cfg.pull_word).lower()} per 5★), "
                 f"{worst} the least ({ppf[worst]:.1f})."
             )
 
     monthly = df.groupby("year_month").size()
     items.append(
-        f"<b>Activity:</b> busiest month was {monthly.idxmax()} ({monthly.max():,} {cfg.pull_word.lower()}s); "
+        f"<b>Activity:</b> busiest month was {monthly.idxmax()} ({monthly.max():,} {pull_plural(cfg.pull_word).lower()}); "
         f"latest {cfg.pull_word.lower()} on {df['datetime'].max():%Y-%m-%d}."
     )
 
@@ -674,13 +670,24 @@ def render_executive_summary(df: pd.DataFrame, cfg: GameConfig, stats: dict, sin
 # ============================================================================
 # Analysis tabs
 # ============================================================================
-def account_filter(df: pd.DataFrame, k: str, key: str) -> pd.DataFrame:
+def account_filter(df: pd.DataFrame, k: str, key: str, all_label: str = "All") -> pd.DataFrame:
     """Per-tab account selector, shown only when several accounts are in the selection."""
     accounts = account_order(df)
     if len(accounts) <= 1:
         return df
-    choice = st.radio("Account", ["All"] + accounts, horizontal=True, key=f"{k}_accfilter_{key}")
-    return df if choice == "All" else df[df["account"] == choice]
+    choice = st.radio("Account", [all_label] + accounts, horizontal=True, key=f"{k}_accfilter_{key}")
+    return df if choice == all_label else df[df["account"] == choice]
+
+
+def banner_filter_radio(df: pd.DataFrame, cfg: GameConfig, k: str, key: str, all_label: str = "All"):
+    """Single-banner selector for a tab. Returns (filtered df, chosen banner or None for all)."""
+    banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    if len(banners) <= 1:
+        return df, (banners[0] if banners else None)
+    choice = st.radio("Banner", [all_label] + banners, horizontal=True, key=f"{k}_bannerfilter_{key}")
+    if choice == all_label:
+        return df, None
+    return df[df["banner_type"].astype(str) == choice], choice
 
 
 def insight_total_pull(df, cfg, k):
@@ -700,53 +707,119 @@ def insight_total_pull(df, cfg, k):
 
     col1, col2 = st.columns(2)
     with col1:
+        # 100% stacked: compares rarity mix without the largest account flattening the others.
+        ranked = summary.sort_values("total_pull", ascending=False)
+        labels = [f"{a}<br>{int(t):,} {pull_plural(w).lower()}" for a, t in zip(ranked["account"], ranked["total_pull"])]
         fig = go.Figure()
         for r in (3, 4, 5):
-            fig.add_trace(go.Bar(x=summary["account"], y=summary[f"pull_{r}star"], name=f"{r}★", marker_color=RARITY_COLORS[r]))
-        fig.add_trace(go.Scatter(x=summary["account"], y=summary["total_pull"], mode="text",
-                                 text=[f"{int(v):,}" for v in summary["total_pull"]], textposition="top center",
-                                 textfont=dict(color=TEXT_PRIMARY, size=12), showlegend=False, hoverinfo="skip", cliponaxis=False))
-        apply_layout(fig, f"Total {w}s per Account", "Account", f"{w}s", barmode="stack", hovermode="x unified", legend=True)
-        fig.update_yaxes(range=[0, summary["total_pull"].max() * 1.15])
+            share = ranked[f"pull_{r}star"] / ranked["total_pull"] * 100
+            fig.add_trace(go.Bar(
+                y=labels, x=share, orientation="h", name=f"{r}★", marker_color=RARITY_COLORS[r],
+                customdata=ranked[f"pull_{r}star"],
+                hovertemplate=f"{r}★: %{{x:.2f}}% (%{{customdata:,}} {pull_plural(w).lower()})<extra></extra>",
+            ))
+        apply_layout(fig, f"{w} Rarity Mix per Account (100%)", "Share of total (%)", None,
+                     barmode="stack", legend=True, height=380)
+        fig.update_xaxes(range=[0, 100])
+        fig.update_yaxes(autorange="reversed")
         show(fig, k, "total_pull")
         top = summary.sort_values("total_pull", ascending=False).iloc[0]
         if len(summary) > 1:
-            chart_note(f"<b>{html.escape(str(top['account']))}</b> has the most {w.lower()}s ({int(top['total_pull']):,}). "
+            chart_note(f"<b>{html.escape(str(top['account']))}</b> has the most {pull_plural(w).lower()} ({int(top['total_pull']):,}). "
                        f"5★ share ranges from {summary['pct_5star'].min():.2f}% to {summary['pct_5star'].max():.2f}%.")
         else:
-            chart_note(f"{int(top['total_pull']):,} {w.lower()}s: {int(top['pull_5star'])} five-star ({top['pct_5star']:.2f}%), "
+            chart_note(f"{int(top['total_pull']):,} {pull_plural(w).lower()}: {int(top['pull_5star'])} five-star ({top['pct_5star']:.2f}%), "
                        f"{int(top['pull_4star'])} four-star, {int(top['pull_3star'])} three-star.")
 
     with col2:
         has_progress = summary["adventure_rank"].notna().any()
         fig = go.Figure()
         if has_progress:
-            fig.add_trace(go.Bar(x=summary["account"], y=summary["adventure_rank"], name="Adventure Rank", marker_color=ACCENT_GOLD))
-            fig.add_trace(go.Bar(x=summary["account"], y=summary["world_level"], name="World Level", marker_color=ACCENT_BLUE))
-            apply_layout(fig, "Account Progress (AR & WL)", "Account", "Level", barmode="group", legend=True)
-            show(fig, k, "progress")
+            def _lvl(v):
+                return f"{int(v)}" if pd.notna(v) else "-"
+
+            prog_rows = [
+                '<div class="gx-card-row">'
+                f'<div class="gx-card-label"><b style="color:{TEXT_PRIMARY}; font-size:0.95rem;">{html.escape(str(r["account"]))}</b></div>'
+                '<div style="display:flex; gap:1.8rem; text-align:right;">'
+                f'<div><div class="gx-card-sublabel">Adventure Rank</div><div class="gx-card-value gx-gold">{_lvl(r["adventure_rank"])}</div></div>'
+                f'<div><div class="gx-card-sublabel">World Level</div><div class="gx-card-value" style="color:{ACCENT_BLUE};">{_lvl(r["world_level"])}</div></div>'
+                '</div></div>'
+                for _, r in summary.sort_values("adventure_rank", ascending=False).iterrows()
+            ]
+            st.markdown(
+                '<div class="gx-card"><div class="gx-card-title">Account Progress</div>'
+                + '<div class="gx-card-divider"></div>'.join(prog_rows) + '</div>',
+                unsafe_allow_html=True,
+            )
             ar = summary.dropna(subset=["adventure_rank"]).sort_values("adventure_rank", ascending=False).iloc[0]
             wl = f" (World Level {int(ar['world_level'])})" if pd.notna(ar["world_level"]) else ""
             chart_note(f"Progression context only: highest Adventure Rank is {int(ar['adventure_rank'])}{wl} on "
                        f"<b>{html.escape(str(ar['account']))}</b>. It shows how far an account has advanced, not how lucky it was.")
         else:
-            fig.add_trace(go.Bar(x=summary["account"], y=summary["pct_5star"], name="5★ rate", marker_color=RARITY_COLORS[5],
-                                 text=[f"{p:.2f}%" for p in summary["pct_5star"]], textposition="outside"))
-            fig.add_trace(go.Bar(x=summary["account"], y=summary["pct_4star"], name="4★ rate", marker_color=RARITY_COLORS[4],
-                                 text=[f"{p:.2f}%" for p in summary["pct_4star"]], textposition="outside"))
-            apply_layout(fig, "5★ & 4★ Rate per Account", "Account", f"Share of {w.lower()}s (%)", barmode="group", legend=True)
-            fig.update_yaxes(range=[0, max(summary["pct_4star"].max(), summary["pct_5star"].max()) * 1.25])
-            show(fig, k, "rates")
-            chart_note(f"{cfg.title} exports contain no account level data, so this shows the observed 5★ and 4★ rate per account "
-                       "(base rates are about 0.6% for 5★ and 5.1% for 4★).")
+            # No account level data in this export: same text-only card, showing observed rates instead.
+            def _per5(r):
+                return f"{r['total_pull'] / r['pull_5star']:.1f}" if r["pull_5star"] else "-"
+
+            sum_rows = [
+                '<div class="gx-card-row">'
+                f'<div class="gx-card-label"><b style="color:{TEXT_PRIMARY}; font-size:0.95rem;">{html.escape(str(r["account"]))}</b></div>'
+                '<div style="display:flex; gap:1.8rem; text-align:right;">'
+                f'<div><div class="gx-card-sublabel">5★ rate</div><div class="gx-card-value gx-gold">{r["pct_5star"]:.2f}%</div></div>'
+                f'<div><div class="gx-card-sublabel">4★ rate</div><div class="gx-card-value gx-purple">{r["pct_4star"]:.2f}%</div></div>'
+                f'<div><div class="gx-card-sublabel">{pull_plural(w)} per 5★</div><div class="gx-card-value">{_per5(r)}</div></div>'
+                '</div></div>'
+                for _, r in summary.sort_values("total_pull", ascending=False).iterrows()
+            ]
+            st.markdown(
+                '<div class="gx-card"><div class="gx-card-title">Account Summary</div>'
+                + '<div class="gx-card-divider"></div>'.join(sum_rows) + '</div>',
+                unsafe_allow_html=True,
+            )
+            chart_note(f"{cfg.title} exports contain no account level data (no rank or level), so this shows the observed 5★ and 4★ "
+                       f"rate per account instead (base rates are about 0.6% for 5★ and 5.1% for 4★).")
 
     with st.expander("Data Details"):
         show_df(summary)
 
 
+def _monthly_star_counts(df, cfg, star: int) -> pd.DataFrame:
+    """Months x banners table with the number of `star`★ obtained (every month in range, zeros filled)."""
+    months = pd.period_range(df["datetime"].min(), df["datetime"].max(), freq="M").astype(str)
+    banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    d = df[df["rarity"] == star]
+    if d.empty:
+        return pd.DataFrame(0, index=months, columns=banners)
+    pv = d.assign(banner_type=d["banner_type"].astype(str)).groupby(["year_month", "banner_type"]).size().unstack(fill_value=0)
+    return pv.reindex(index=months, columns=banners, fill_value=0)
+
+
+def _monthly_star_chart(pv: pd.DataFrame, cfg, star: int):
+    fig = go.Figure()
+    for banner in pv.columns:
+        fig.add_trace(go.Bar(x=pv.index, y=pv[banner], name=banner, marker_color=cfg.banner_colors.get(banner, "#999999")))
+    total = pv.sum(axis=1)
+    fig.add_trace(go.Scatter(x=total.index, y=total.values, mode="text", text=[f"{int(v)}" if v else "" for v in total.values],
+                             textposition="top center", textfont=dict(color=TEXT_PRIMARY, size=11),
+                             showlegend=False, hoverinfo="skip", cliponaxis=False))
+    apply_layout(fig, f"{star}★ Obtained per Month", "Month", f"{star}★ obtained", height=340,
+                 barmode="stack", hovermode="x unified", legend=True)
+    fig.update_yaxes(range=[0, max(int(total.max()), 1) * 1.25])
+    fig.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
+    return fig
+
+
 def insight_timeline(df, cfg, k):
     w = cfg.pull_word
-    section_header(f"{w} Timeline", f"Monthly {w.lower()} volume by banner")
+    section_header(f"{w} Timeline", f"Monthly {w.lower()} volume and 5★ / 4★ obtained, by banner and account")
+    df = account_filter(df, k, "timeline", all_label="Total")
+    # The totals are recomputed from the banners picked here.
+    all_banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    shown = st.multiselect("Banners shown", all_banners, default=all_banners)
+    if not shown:
+        st.warning("Select at least one banner.")
+        return
+    df = df[df["banner_type"].astype(str).isin(shown)]
     timeline = (df.groupby(["year_month", "banner_type"], observed=True).size().reset_index(name="pull_count").sort_values("year_month"))
     pivot = timeline.pivot(index="year_month", columns="banner_type", values="pull_count").fillna(0)
     pivot = pivot.reindex(columns=order_banners(cfg, pivot.columns))
@@ -760,16 +833,47 @@ def insight_timeline(df, cfg, k):
     fig.add_trace(go.Scatter(x=total.index, y=total.values, mode="text", text=[f"{int(v):,}" if v else "" for v in total.values],
                              textposition="top center", textfont=dict(color=TEXT_PRIMARY, size=11),
                              showlegend=False, hoverinfo="skip", cliponaxis=False))
-    apply_layout(fig, f"Monthly {w}s by Banner", "Month", f"{w}s", height=460, barmode="stack", hovermode="x unified", legend=True)
+    apply_layout(fig, f"Monthly {pull_plural(w)} by Banner", "Month", f"{pull_plural(w)}", height=460, barmode="stack", hovermode="x unified", legend=True)
     fig.update_yaxes(range=[0, total.max() * 1.15])
+    # Legend clicks would hide bars without updating the totals, so selection is done with the selector above.
+    fig.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
     show(fig, k, "timeline")
     top_banner = pivot.sum().idxmax()
     share = pivot[top_banner].sum() / pivot.values.sum() * 100
     active = total[total > 0]
-    chart_note(f"Busiest month: <b>{total.idxmax()}</b> ({int(total.max()):,} {w.lower()}s); average {active.mean():.0f} per active month. "
-               f"{top_banner} makes up {share:.0f}% of all {w.lower()}s.")
+    chart_note(f"Busiest month: <b>{total.idxmax()}</b> ({int(total.max()):,} {pull_plural(w).lower()}); average {active.mean():.0f} per active month. "
+               f"{top_banner} makes up {share:.0f}% of all {pull_plural(w).lower()}.")
+
+    # ---- 5★ and 4★ obtained per month: per banner and total ----------------------
+    block_label("5★ and 4★ obtained per month")
+    pv5, pv4 = _monthly_star_counts(df, cfg, 5), _monthly_star_counts(df, cfg, 4)
+    show(_monthly_star_chart(pv5, cfg, 5), k, "timeline_5star")
+    show(_monthly_star_chart(pv4, cfg, 4), k, "timeline_4star")
+    chart_note(f"Total in the selection: <b>{int(pv5.values.sum())}</b> five-star and <b>{int(pv4.values.sum())}</b> four-star. "
+               "The number above each bar is the sum of the banners and account chosen above; hover a bar for the per-banner split.")
+
+    table = pd.DataFrame(index=pv5.index)
+    table["Total 5★"], table["Total 4★"] = pv5.sum(axis=1), pv4.sum(axis=1)
+    for banner in pv5.columns:
+        table[f"{banner} 5★"], table[f"{banner} 4★"] = pv5[banner], pv4[banner]
+    table.loc["Total"] = table.sum()
+    table = table.astype(int).rename_axis("Month").reset_index()
+    with st.expander("Monthly table: total and per banner", expanded=True):
+        show_df(table, height=min(38 * (len(table) + 1), 520))
     with st.expander("Data Details"):
         show_df(timeline)
+
+
+def _kde(vals, grid):
+    """Gaussian KDE (Silverman-style bandwidth) on `grid`; None when it cannot be estimated."""
+    x = np.asarray(vals, dtype=float)
+    if len(x) < 3 or x.std(ddof=1) == 0:
+        return None
+    sd = x.std(ddof=1)
+    iqr = np.subtract(*np.percentile(x, [75, 25]))
+    bw = 0.9 * (min(sd, iqr / 1.34) if iqr > 0 else sd) * len(x) ** (-1 / 5)
+    z = (grid[:, None] - x[None, :]) / bw
+    return np.exp(-0.5 * z ** 2).sum(axis=1) / (len(x) * bw * np.sqrt(2 * np.pi))
 
 
 def insight_pity_distribution(df, cfg, k):
@@ -780,6 +884,7 @@ def insight_pity_distribution(df, cfg, k):
         return
     banners = order_banners(cfg, five["banner_type"].dropna().unique())
     banners = [b for b in banners if (five["banner_type"] == b).any()]
+    block_label("Histogram + density curve")
     for i in range(0, len(banners), 3):
         cols = st.columns(3)
         for col, banner in zip(cols, banners[i:i + 3]):
@@ -789,24 +894,333 @@ def insight_pity_distribution(df, cfg, k):
             hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
             with col:
                 fig = go.Figure(go.Histogram(x=vals, xbins=dict(start=0, end=hard + 5, size=5),
+                                             histnorm="probability density", opacity=0.85,
                                              marker_color=cfg.banner_colors.get(banner, "#999999"), name=banner))
+                grid = np.linspace(0, hard + 5, 300)
+                dens = _kde(vals, grid)
+                if dens is not None:
+                    fig.add_trace(go.Scatter(x=grid, y=dens, mode="lines", name="Density",
+                                             line=dict(color=TEXT_PRIMARY, width=2.2), hoverinfo="skip"))
                 fig.add_vline(x=vals.mean(), line_dash="dash", line_color=TEXT_PRIMARY,
                               annotation_text=f"mean {vals.mean():.1f}", annotation_font_color=TEXT_SECONDARY,
                               annotation_position="top left")
                 fig.add_vline(x=hard, line_dash="dot", line_color=TEXT_MUTED,
                               annotation_text=f"hard {hard}", annotation_font_color=TEXT_MUTED,
                               annotation_position="top right")
-                apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 5★", "5★ count", height=330, bargap=0.05)
+                apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 5★", "Density", height=330, bargap=0.05)
                 fig.update_xaxes(range=[0, hard + 5])
                 show(fig, k, f"pity_{banner}")
     avgs = five.groupby("banner_type", observed=True)["pity"].mean()
     avg_txt = " · ".join(f"{b} <b>{avgs[b]:.1f}</b>" for b in banners if b in avgs.index and pd.notna(avgs[b]))
     softs = ", ".join(f"{b} {cfg.soft_pity[b]}" for b, _ in cfg.summary_banners if b in cfg.soft_pity)
-    chart_note(f"Average 5★ pity: {avg_txt}. Bars count 5★ by pity bucket (5 per bar); dashed line = average, dotted line = hard pity. "
+    chart_note(f"Average 5★ pity: {avg_txt}. Bars = density of 5★ per pity bucket (5 pulls per bar), solid curve = smoothed density, dashed line = average, dotted line = hard pity. "
                f"Soft pity starts at {softs}: clusters just before it are normal, bars far left are early lucky pulls.")
+    block_label("Cumulative probability (CDF)")
+    fig = go.Figure()
+    cdf_notes = []
+    for banner in banners:
+        vals = np.sort(five.loc[five["banner_type"] == banner, "pity"].dropna().to_numpy(dtype=float))
+        if len(vals) == 0:
+            continue
+        hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
+        x = np.concatenate([[0], vals, [max(hard, vals.max())]])
+        y = np.concatenate([[0], np.arange(1, len(vals) + 1) / len(vals) * 100, [100]])
+        fig.add_trace(go.Scatter(
+            x=x, y=y, mode="lines", name=f"{banner} (n={len(vals)})", line=dict(shape="hv", width=2.4, color=cfg.banner_colors.get(banner, "#999999")),
+            hovertemplate=f"{banner}: %{{y:.1f}}% of 5★ by pity %{{x:.0f}}<extra></extra>",
+        ))
+        p50, p90 = np.percentile(vals, [50, 90])
+        cdf_notes.append(f"{banner} median <b>{p50:.0f}</b>, 90% by <b>{p90:.0f}</b>")
+    for level in (50, 90):
+        fig.add_hline(y=level, line_dash="dot", line_color=TEXT_MUTED,
+                      annotation_text=f"{level}%", annotation_font_color=TEXT_MUTED, annotation_position="bottom right")
+    apply_layout(fig, "Empirical CDF: share of 5★ landed by a given pity", "Pity at 5★ (pulls)",
+                 "Cumulative share of 5★ (%)", height=420, legend=True, yaxis_range=[0, 102], hovermode="x unified")
+    show(fig, k, "pity_cdf")
+    chart_note("Read it as: by pull X, Y% of your 5★ had already landed. The steeper the curve, the more consistent the pity. "
+               + " · ".join(cdf_notes) + ".")
+
     with st.expander("Data Details"):
         show_df(five[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]]
                 .astype({"banner_type": str}).sort_values(["banner_type", "datetime"]))
+
+
+# ----------------------------------------------------------------------------
+# Additional pity / luck analyses
+# ----------------------------------------------------------------------------
+LOW_EXPOSURE = 20  # fewer pulls at risk than this in a hazard bucket -> faded bar
+
+
+def expected_rate_5(cfg: GameConfig, banner: str):
+    """Consolidated 5★ rate per pull in % (pity included) from `GameConfig.expected_rate_5`.
+    Returns None for a banner that has no entry (it is then left out of the charts that need it).
+    Only an older config without that field falls back to the commonly published figures below."""
+    rates = getattr(cfg, "expected_rate_5", None)
+    if rates:
+        value = rates.get(banner)
+        return float(value) if value is not None else None
+    name = str(banner).lower()
+    if "light cone" in name:
+        return 1.87
+    if "weapon" in name:
+        return 1.85
+    return 1.6
+
+
+def _hazard_buckets(df, cfg, banner, size: int = 5):
+    """P(5★ on this pull | no 5★ yet) per bucket of `size` pulls. The unfinished streak of each account
+    counts as at risk but without an event (censored), so late buckets are not biased upwards."""
+    hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
+    b = df[df["banner_type"].astype(str) == banner]
+    pity = b.loc[b["is_5star"], "pity"].dropna().astype(int).to_numpy()
+    n = np.arange(1, hard + 1)
+    events = np.array([(pity == i).sum() for i in n])
+    at_risk = np.array([(pity >= i).sum() for i in n])
+    for _, g in b.groupby("account"):
+        cp = current_pity(g, banner, 5)
+        if cp:
+            at_risk = at_risk + (n <= cp)
+    idx = (n - 1) // size
+    rows = []
+    for j in np.unique(idx):
+        m = idx == j
+        lo, hi = int(n[m].min()), int(n[m].max())
+        ev, risk = int(events[m].sum()), int(at_risk[m].sum())
+        rows.append(dict(banner=banner, lo=lo, hi=hi, mid=(lo + hi) / 2, events=ev, at_risk=risk,
+                         hazard=ev / risk * 100 if risk else np.nan))
+    return pd.DataFrame(rows), hard
+
+
+def insight_hazard_rate(df, cfg, k):
+    section_header("Hazard Rate", "Chance of a 5★ on each pull given none yet: where soft pity really starts for you")
+    five = df[df["is_5star"]]
+    if five.empty:
+        st.warning("No 5★ pulls in the current selection.")
+        return
+    banners = order_banners(cfg, five["banner_type"].dropna().astype(str).unique())
+    all_tables = []
+    for i in range(0, len(banners), 3):
+        cols = st.columns(3)
+        for col, banner in zip(cols, banners[i:i + 3]):
+            tbl, hard = _hazard_buckets(df, cfg, banner)
+            if tbl.empty or tbl["at_risk"].sum() == 0:
+                continue
+            all_tables.append(tbl)
+            soft = cfg.soft_pity.get(banner)
+            with col:
+                fig = go.Figure(go.Bar(
+                    x=tbl["mid"], y=tbl["hazard"], width=4.6,
+                    marker=dict(color=cfg.banner_colors.get(banner, "#999999"),
+                                opacity=[0.35 if r < LOW_EXPOSURE else 1 for r in tbl["at_risk"]]),
+                    customdata=np.stack([tbl["lo"], tbl["hi"], tbl["events"], tbl["at_risk"]], axis=-1),
+                    hovertemplate="Pity %{customdata[0]}–%{customdata[1]}: %{y:.1f}%<br>"
+                                  "%{customdata[2]} 5★ from %{customdata[3]} pulls at risk<extra></extra>",
+                ))
+                if soft:
+                    fig.add_vline(x=soft, line_dash="dash", line_color=TEXT_PRIMARY,
+                                  annotation_text=f"soft {soft}", annotation_font_color=TEXT_SECONDARY,
+                                  annotation_position="top left")
+                fig.add_vline(x=hard, line_dash="dot", line_color=TEXT_MUTED,
+                              annotation_text=f"hard {hard}", annotation_font_color=TEXT_MUTED,
+                              annotation_position="top right")
+                top = float(np.nanmax(tbl["hazard"])) if tbl["hazard"].notna().any() else 1.0
+                apply_layout(fig, f"{banner} (n={len(five[five['banner_type'].astype(str) == banner])})",
+                             "Pity", "5★ chance per pull (%)", height=330, bargap=0.05,
+                             yaxis_range=[0, min(100.0, max(top * 1.2, 1.0))])
+                fig.update_xaxes(range=[0, hard + 3])
+                show(fig, k, f"hazard_{banner}")
+    chart_note(f"Each bar = 5★ obtained ÷ pulls that reached that bucket (your current unfinished streak counts as at risk). "
+               f"Before soft pity the official base rate is only about 0.6–0.8%; the climb shows where your 5★ really land. "
+               f"Faded bars have fewer than {LOW_EXPOSURE} pulls at risk, so treat them as noisy.")
+    if all_tables:
+        with st.expander("Data Details"):
+            show_df(pd.concat(all_tables, ignore_index=True)
+                    .rename(columns={"lo": "from", "hi": "to", "mid": "mid", "at_risk": "pulls_at_risk", "hazard": "hazard_pct"}))
+
+
+def insight_pity_4(df, cfg, k):
+    section_header("4★ Pity Distribution", "How many pulls each 4★ took to land, per banner")
+    four = df[df["is_4star"] & df["pity"].notna()]
+    if four.empty:
+        st.warning("No 4★ pulls in the current selection.")
+        return
+    hard = cfg.hard_pity_4
+    banners = order_banners(cfg, four["banner_type"].dropna().astype(str).unique())
+    means = []
+    for i in range(0, len(banners), 3):
+        cols = st.columns(3)
+        for col, banner in zip(cols, banners[i:i + 3]):
+            vals = four.loc[four["banner_type"].astype(str) == banner, "pity"]
+            if vals.empty:
+                continue
+            means.append(f"{banner} <b>{vals.mean():.1f}</b>")
+            with col:
+                fig = go.Figure(go.Histogram(x=vals, xbins=dict(start=0.5, end=hard + 0.5, size=1), histnorm="percent",
+                                             marker_color=cfg.banner_colors.get(banner, "#999999"), name=banner))
+                fig.add_vline(x=vals.mean(), line_dash="dash", line_color=TEXT_PRIMARY,
+                              annotation_text=f"mean {vals.mean():.1f}", annotation_font_color=TEXT_SECONDARY,
+                              annotation_position="top left")
+                apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 4★", "Share of 4★ (%)", height=330, bargap=0.05)
+                fig.update_xaxes(range=[0.5, hard + 0.5], dtick=1)
+                show(fig, k, f"pity4_{banner}")
+    chart_note(f"Average 4★ pity: {' · '.join(means)}. A 4★ is guaranteed by pull {hard}, so a tall bar at {hard} means many "
+               "4★ came from the guarantee rather than the base rate.")
+    with st.expander("Data Details"):
+        show_df(four[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]]
+                .astype({"banner_type": str}).sort_values(["banner_type", "datetime"]))
+
+
+def _longest_runs(df) -> dict:
+    """Longest run of consecutive 50-50 wins / losses (Guaranteed skipped), per account and banner."""
+    best = {"Win": 0, "Lose": 0}
+    d = df[df["win_50_50"].isin(["Win", "Lose"])].copy()
+    d["banner_type"] = d["banner_type"].astype(str)
+    for _, g in d.sort_values(["datetime", "seq"]).groupby(["account", "banner_type"]):
+        prev, run = None, 0
+        for v in g["win_50_50"]:
+            run = run + 1 if v == prev else 1
+            prev = v
+            best[v] = max(best[v], run)
+    return best
+
+
+def insight_pity_timeline(df, cfg, k):
+    section_header("5★ Pity Timeline", "Pity of every 5★ over time, coloured by 50-50 outcome")
+    df = account_filter(df, k, "pity_timeline")
+    df, banner = banner_filter_radio(df, cfg, k, "pity_timeline")
+    five = df[df["is_5star"] & df["pity"].notna()].copy()
+    if five.empty:
+        st.warning("No 5★ pulls in the current selection.")
+        return
+    five["Result"] = five["win_50_50"].fillna("N/A")
+    five["banner_str"] = five["banner_type"].astype(str)
+    colors = {**RESULT_COLORS, "N/A": TEXT_MUTED}
+    fig = go.Figure()
+    for res in ("Win", "Lose", "Guaranteed", "N/A"):
+        s = five[five["Result"] == res]
+        if s.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=s["datetime"], y=s["pity"], mode="markers", name=res,
+            marker=dict(color=colors[res], size=10, line=dict(width=1, color=BG_APP)),
+            customdata=np.stack([s["item_name"].astype(str), s["banner_str"], s["account"].astype(str)], axis=-1),
+            hovertemplate="%{customdata[0]}<br>%{customdata[1]} · %{customdata[2]}<br>"
+                          "Pity %{y} · %{x|%Y-%m-%d}<extra>" + res + "</extra>",
+        ))
+    if banner:
+        soft = cfg.soft_pity.get(banner)
+        if soft:
+            fig.add_hline(y=soft, line_dash="dash", line_color=TEXT_MUTED, annotation_text=f"soft pity {soft}",
+                          annotation_font_color=TEXT_MUTED, annotation_position="bottom right")
+        hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
+        fig.add_hline(y=hard, line_dash="dot", line_color=TEXT_MUTED, annotation_text=f"hard pity {hard}",
+                      annotation_font_color=TEXT_MUTED, annotation_position="top right")
+    apply_layout(fig, "Pity at each 5★", "Date", "Pity at 5★", height=420, legend=True, hovermode="closest")
+    show(fig, k, "pity_timeline")
+    cnt = five["Result"].value_counts()
+    runs = _longest_runs(df[df["is_5star"]])
+    streak = (f" Longest streak of 50-50s: {runs['Win']} won in a row, {runs['Lose']} lost in a row "
+              "(Guaranteed skipped, counted per account and banner)." if runs["Win"] + runs["Lose"] else "")
+    chart_note(f"{int(cnt.get('Win', 0))} won, {int(cnt.get('Lose', 0))} lost, {int(cnt.get('Guaranteed', 0))} guaranteed, "
+               f"{int(cnt.get('N/A', 0))} without a 50-50 (e.g. Standard).{streak} "
+               "A Lose is normally followed by a Guaranteed on the next rate-up 5★.")
+    with st.expander("Data Details"):
+        show_df(five[["account", "banner_str", "datetime", "item_name", "pity", "Result"]]
+                .rename(columns={"banner_str": "banner_type"}).sort_values("datetime", ascending=False))
+
+
+def insight_expected_vs_actual(df, cfg, k):
+    section_header("5★ Actual vs Expected", "Cumulative 5★ obtained against what the official consolidated rate predicts")
+    df = account_filter(df, k, "expected")
+    df, banner = banner_filter_radio(df, cfg, k, "expected")
+    if df.empty:
+        st.warning("No pulls in the current selection.")
+        return
+    d = df.sort_values(["datetime", "seq"]).copy()
+    d["rate"] = pd.to_numeric(d["banner_type"].astype(str).map(lambda b: expected_rate_5(cfg, b)), errors="coerce") / 100
+    # Banners without an expected rate are left out of actual AND expected, so the two lines stay comparable.
+    skipped = order_banners(cfg, d.loc[d["rate"].isna(), "banner_type"].dropna().astype(str).unique())
+    d = d[d["rate"].notna()].copy()
+    if d.empty:
+        st.warning("No banner in the current selection has an expected 5★ rate (see expected_rate_5 in game_configs.py).")
+        return
+    banners = order_banners(cfg, d["banner_type"].dropna().astype(str).unique())
+    d["expected_cum"] = d["rate"].cumsum()
+    d["actual_cum"] = d["is_5star"].astype(int).cumsum()
+    daily = d.groupby("date").agg(actual=("actual_cum", "last"), expected=("expected_cum", "last")).reset_index()
+    daily["gap"] = daily["actual"] - daily["expected"]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=daily["date"], y=daily["expected"], mode="lines", name="Expected (official rate)",
+                             line=dict(color=TEXT_PRIMARY, width=2, dash="dash")))
+    fig.add_trace(go.Scatter(x=daily["date"], y=daily["actual"], mode="lines", name="Actual 5★",
+                             line=dict(color=ACCENT_GOLD, width=2.8)))
+    apply_layout(fig, "Cumulative 5★: actual vs expected", "Date", "5★ obtained", height=400, legend=True, hovermode="x unified")
+    show(fig, k, "exp_cum")
+
+    fig = go.Figure()
+    for name, series, color in (("Ahead of expected", daily["gap"].clip(lower=0), SUCCESS),
+                                ("Behind expected", daily["gap"].clip(upper=0), DANGER)):
+        fig.add_trace(go.Scatter(x=daily["date"], y=series, mode="lines", name=name, fill="tozeroy",
+                                 line=dict(color=color, width=1.2)))
+    apply_layout(fig, "Gap: actual − expected 5★", "Date", "5★ ahead (+) / behind (−)", height=280, legend=True,
+                 hovermode="x unified")
+    show(fig, k, "exp_gap")
+
+    actual, expected = int(daily["actual"].iloc[-1]), float(daily["expected"].iloc[-1])
+    gap = actual - expected
+    rates = ", ".join(f"{b} {expected_rate_5(cfg, b):g}%" for b in banners)
+    chart_note(f"<b>{actual}</b> five-star obtained vs <b>{expected:.1f}</b> expected: "
+               f"{'ahead by' if gap >= 0 else 'behind by'} <b>{abs(gap):.1f}</b>. "
+               f"Expected rates used (consolidated, pity included): {rates}. "
+               + (f"Left out (no expected rate in game_configs.py): {', '.join(skipped)}. " if skipped else "")
+               + "A gap of a few 5★ either way is normal variance, not proof of good or bad luck.")
+    with st.expander("Data Details"):
+        show_df(daily)
+
+
+def insight_rolling_efficiency(df, cfg, k):
+    section_header("Rolling Pulls per 5★", "Moving average of the pity of your last N 5★: is your efficiency improving?")
+    df = account_filter(df, k, "rolling")
+    five = df[df["is_5star"] & df["pity"].notna()].sort_values(["datetime", "seq"])
+    if five.empty:
+        st.warning("No 5★ pulls in the current selection.")
+        return
+    window = st.slider("Window (number of 5★)", 2, 10, 5, key=f"{k}_rolling_window")
+    fig = go.Figure()
+    latest, short = [], []
+    for banner in order_banners(cfg, five["banner_type"].dropna().astype(str).unique()):
+        s = five[five["banner_type"].astype(str) == banner]
+        color = cfg.banner_colors.get(banner, "#999999")
+        enough = len(s) >= window
+        fig.add_trace(go.Scatter(
+            x=s["datetime"], y=s["pity"], mode="markers", name=f"{banner} (each 5★)", legendgroup=banner,
+            marker=dict(color=color, size=6, opacity=0.35), showlegend=not enough,
+            hovertemplate=f"{banner}<br>Pity %{{y}} · %{{x|%Y-%m-%d}}<extra></extra>",
+        ))
+        if enough:
+            roll = s["pity"].rolling(window).mean()
+            fig.add_trace(go.Scatter(
+                x=s["datetime"], y=roll, mode="lines", name=banner, legendgroup=banner,
+                line=dict(color=color, width=2.6),
+                hovertemplate=f"{banner} rolling {window}: %{{y:.1f}}<extra></extra>",
+            ))
+            latest.append(f"{banner} <b>{roll.iloc[-1]:.1f}</b>")
+        else:
+            short.append(f"{banner} ({len(s)} 5★)")
+        exp_rate = expected_rate_5(cfg, banner)
+        if exp_rate:
+            fig.add_hline(y=100 / exp_rate, line_dash="dot", line_color=color, opacity=0.55)
+    apply_layout(fig, f"Rolling average pulls per 5★ (window {window})", "Date of the 5★", "Pulls per 5★",
+                 height=420, legend=True, hovermode="closest")
+    show(fig, k, "rolling")
+    txt = f"Latest rolling average: {' · '.join(latest)}. " if latest else ""
+    if short:
+        txt += f"Not enough 5★ for a window of {window}: {', '.join(short)}. "
+    chart_note(txt + "Dots = pity of each 5★, line = moving average, dotted line = expected pulls per 5★ "
+               "(1 ÷ official consolidated rate). A line sinking below its dotted line means your recent pulls are efficient.")
+    with st.expander("Data Details"):
+        show_df(five[["account", "banner_type", "datetime", "item_name", "pity"]].astype({"banner_type": str}))
 
 
 def _winrate_rows(df, cfg):
@@ -908,15 +1322,15 @@ def insight_banner_performance(df, cfg, k):
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        fig = hbar(perf["total_pull"], f"Total {w}s", "total", [f"{v:,}" for v in perf["total_pull"]], f"{w}s")
+        fig = hbar(perf["total_pull"], f"Total {pull_plural(w)}", "total", [f"{v:,}" for v in perf["total_pull"]], f"{pull_plural(w)}")
         fig.update_xaxes(range=[0, perf["total_pull"].max() * 1.25])
         show(fig, k, "banner_total")
         top = perf.sort_values("total_pull", ascending=False).iloc[0]
-        chart_note(f"<b>{top['banner_type']}</b> takes {top['total_pull'] / perf['total_pull'].sum() * 100:.0f}% of all {w.lower()}s ({int(top['total_pull']):,}).")
+        chart_note(f"<b>{top['banner_type']}</b> takes {top['total_pull'] / perf['total_pull'].sum() * 100:.0f}% of all {pull_plural(w).lower()} ({int(top['total_pull']):,}).")
     with col2:
         vals = perf["pull_per_5star"]
-        fig = hbar(vals.fillna(0), f"{w}s per 5★ (lower = better)", "eff",
-                   [f"{v:.1f}" if pd.notna(v) else "N/A" for v in vals], f"{w}s per 5★")
+        fig = hbar(vals.fillna(0), f"{pull_plural(w)} per 5★ (lower = better)", "eff",
+                   [f"{v:.1f}" if pd.notna(v) else "N/A" for v in vals], f"{pull_plural(w)} per 5★")
         fig.update_xaxes(range=[0, max(vals.max() * 1.25, 1)])
         show(fig, k, "banner_eff")
         eff = perf.dropna(subset=["pull_per_5star"])
@@ -1065,7 +1479,7 @@ def _render_history_table(df, cfg, k, rarity: int):
         "No.": st.column_config.NumberColumn("No.", format="%d", width="small"),
         "Pity": st.column_config.ProgressColumn("Pity", format="%d", min_value=0, max_value=max_pity),
     })
-    st.caption("No. = order of the pull within its account, counted inside the current filters. Newest first.")
+    st.caption("No. = pull order within the account, counted using the current filters. Newest first.")
 
 
 def insight_pull_history(df, cfg, k):
@@ -1098,6 +1512,7 @@ def render_game(cfg: GameConfig, path: Path):
     # ---- Full-width filter panel -------------------------------------------
     with st.container(border=True, key=f"{k}_filter_panel"):
         st.markdown('<div class="gx-side-section">Dashboard filters</div>', unsafe_allow_html=True)
+        st.caption("All metrics and charts below follow these filters.")
         account_col, banner_col, date_col = st.columns([1.15, 2.0, 2.5], gap="large")
 
         with account_col:
@@ -1158,34 +1573,56 @@ def render_game(cfg: GameConfig, path: Path):
         chips=[
             f"{date_range[0]} → {date_range[1]}",
             f"{int(display_df['is_5star'].sum()):,} five-star",
-            f"{len(display_df):,} {cfg.pull_word.lower()}s",
+            f"{len(display_df):,} {pull_plural(cfg.pull_word).lower()}",
             wr,
         ],
     )
 
     block_label("Overview")
+    st.caption("Key metrics: pull volume, number of 5★ items, average pity, win rate, and latest 5★ result.")
     render_key_parameters(cfg, stats)
 
     block_label("Banner Pity Meters")
+    st.caption("Pity is the number of pulls since the last item of the corresponding rarity was obtained, for each banner.")
     render_pity_section(display_df, cfg)
-    st.caption("Pity counters are computed from the pulls inside the active date and banner filters.")
+    st.caption("Pity values are calculated from the data within the active date and banner filters.")
 
     block_label("Summary")
+    st.caption("The automatic summary highlights the data period, rate-up outcomes, banner efficiency, monthly activity, and current pity.")
     render_executive_summary(display_df, cfg, stats, single)
 
     block_label("Detailed Analysis")
-    tabs = st.tabs([
-        "Total Pulls", "Banner", "Timeline", "Pity 5★", "50-50",
-        "Luck Score", "Top Items", "Latest 5★", "History",
-    ])
-    views = [
-        insight_total_pull, insight_banner_performance, insight_timeline,
-        insight_pity_distribution, insight_win_lose, insight_luck_score,
-        insight_top_items, insight_latest_5star, insight_pull_history,
+    st.caption("Choose an analysis group, then open a tab to view its charts and data details.")
+    # Two levels: a few groups on top, the individual analyses as sub-tabs inside each group.
+    groups = [
+        ("Overview", [
+            ("Total Pulls", insight_total_pull),
+            ("Banner", insight_banner_performance),
+            ("Timeline", insight_timeline),
+        ]),
+        ("Pity", [
+            ("5★ Pity", insight_pity_distribution),
+            ("Hazard Rate", insight_hazard_rate),
+            ("4★ Pity", insight_pity_4),
+        ]),
+        ("Luck & 50-50", [
+            ("Luck Score", insight_luck_score),
+            ("Actual vs Expected", insight_expected_vs_actual),
+            ("Rolling Efficiency", insight_rolling_efficiency),
+            ("50-50", insight_win_lose),
+            ("Pity Timeline", insight_pity_timeline),
+        ]),
+        ("Items & History", [
+            ("Top Items", insight_top_items),
+            ("Latest 5★", insight_latest_5star),
+            ("History", insight_pull_history),
+        ]),
     ]
-    for tab, view in zip(tabs, views):
-        with tab:
-            view(display_df, cfg, k)
+    for group_tab, (_, views) in zip(st.tabs([name for name, _ in groups]), groups):
+        with group_tab:
+            for sub_tab, (_, view) in zip(st.tabs([name for name, _ in views]), views):
+                with sub_tab:
+                    view(display_df, cfg, k)
 
     st.download_button(
         label=f"Download filtered {cfg.key} data (CSV)",
@@ -1220,8 +1657,10 @@ def main():
     st.sidebar.markdown(
         '<div class="gx-sidebar-brand">'
         '<div class="gx-sidebar-mark">Personal analytics</div>'
-        '<div class="gx-sidebar-name">Gacha<br>Analytics</div>'
-        '<div class="gx-sidebar-caption">A consolidated view of pull history, pity and banner performance.</div>'
+        '<div class="gx-sidebar-name">Gacha Analytics</div>'
+        '<div class="gx-sidebar-caption">Pull history, pity, banner performance, and account comparisons.</div>'
+        '<div class="gx-sidebar-caption">Data processed from Paimon.moe for Genshin Impact and '
+        'StarRailStation for Honkai: Star Rail.</div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -1236,8 +1675,8 @@ def main():
     st.markdown(
         '<div class="gx-appbar">'
         '<div><div class="gx-app-kicker">Analytics workspace</div>'
-        '<div class="gx-app-title">Gacha performance overview</div>'
-        '<div class="gx-app-subtitle">Track account activity, banner efficiency and pull outcomes.</div></div>'
+        '<div class="gx-app-title">Gacha Analytics</div>'
+        '<div class="gx-app-subtitle">Account activity, banner efficiency, and pull outcomes.</div></div>'
         '<div class="gx-app-status">PERSONAL WORKSPACE</div>'
         '</div>',
         unsafe_allow_html=True,
