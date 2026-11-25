@@ -36,7 +36,8 @@ Analytics, interactive dashboard, and auto-updating Google Sheet from your gacha
 │   └── hsr/
 ├── credentials/                 # secret.toml (git-ignored)
 ├── requirements.txt / requirements-dev.txt   # run / run + tests
-└── .github/                     # workflow (cml.yml) + dependabot.yml
+├── runtime.txt                  # Python version used by CI
+└── .github/workflows/           # workflow (cml.yml)
 ```
 
 File names follow the pipeline step: `01` fetch → `02` preprocess → `03` analytics → `04` sync. `_gi` / `_hsr` marks the game.
@@ -198,7 +199,7 @@ Existing data is never deleted; a tab is skipped if the new export has fewer pul
 
 `.github/workflows/cml.yml` runs on push of a new export, or manually. Each game runs only if its export exists. Steps: install (pip cached) → **tests** → detect exports → `python -m pipeline fetch` → `preprocess` → Google Sheets sync (optional) → `analytics` → dashboard smoke test (`dashboard.py`) → commit `data/` and `outputs/` → post a report (from `outputs/gi/` and `outputs/hsr/`) as a commit comment. Failing tests stop the run before any data is touched.
 
-- Actions are pinned to a commit SHA (the tag is in a comment); `.github/dependabot.yml` proposes updates monthly.
+- Actions are pinned to a commit SHA (the tag is in a comment); update the SHA by hand to upgrade an action.
 - Optional secrets: `GSHEET_ID`, `GCP_SERVICE_ACCOUNT_JSON` (without them the sync step is skipped).
 - Optional repository variable: `GACHA_MASK_UID=1` masks the Genshin UID in `data_clean_gi.csv`.
 - In a private repository the report links to the chart files instead of embedding them (`raw.githubusercontent.com` images only load for public repos).
@@ -244,12 +245,13 @@ git add data/ && git commit -m "update gacha data" && git push
 
 ## Changelog
 
+- **Removed:** Dependabot (`.github/dependabot.yml`). Pinned action SHAs are now updated by hand.
 - **Added:** `python -m pipeline` (one command for fetch → preprocess → analytics → sync); CI uses it instead of repeating every script.
 - **Added:** pytest suite in `tests/` (Star Rail LZString decoder vs. the reference library, Luck Score, lookup parser + validation, Genshin preprocessing, radiance model, config, runner); CI runs it first.
 - **Fixed:** `compute_luck` (Luck Score, also used by the dashboard) crashed on newer pandas when a selection had no 5★ Win/Lose rows (e.g. only Standard); regression tests added.
 - **Fixed:** Genshin duplicate removal compared single rows, which would have removed real 3★ pulls (3★ rows always have pity 1). Now only a whole repeated 10-pull is removed. The lookup parser no longer lets an entry without rarity pick up its neighbour's.
 - **Added:** `--mask-uid` / `GACHA_MASK_UID` for the Genshin UID; the CI report links to charts instead of embedding them in private repos.
-- **Changed:** Genshin CSV `data_clean.csv` → `data_clean_gi.csv` (old name still read as a fallback). CI: pip cache, Actions pinned to SHA, Dependabot for Actions.
+- **Changed:** Genshin CSV `data_clean.csv` → `data_clean_gi.csv` (old name still read as a fallback). CI: pip cache, Actions pinned to SHA.
 - **Changed:** scripts log through `pipeline/logsetup.py` (warnings/errors become GitHub Actions annotations).
 - **Changed:** `analytics_core.py` now uses the `GameConfig` from `config.py` (the second copy was removed); the Luck Score moved to `pipeline/luck.py`, so the dashboard no longer loads matplotlib.
 - **Added:** `pipeline/03_radiance_check_gi.py`: compares your Character Event 50/50 results with the Capturing Radiance counter model (reset vs decrement variant). The model comes from a community diagram and is not verified; the script reports how well it fits your data.

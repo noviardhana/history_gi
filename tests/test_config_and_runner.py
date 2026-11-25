@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from pipeline import __main__ as runner
@@ -22,7 +24,7 @@ def test_game_config_is_consistent(key):
 
 def test_runner_builds_commands_per_game():
     cmds = runner.build_commands("preprocess", ["gi", "hsr"])
-    assert [c[1].split("/")[-1] for c in cmds] == ["02_preprocess_gi.py", "02_preprocess_hsr.py"]
+    assert [Path(c[1]).name for c in cmds] == ["02_preprocess_gi.py", "02_preprocess_hsr.py"]
     sync = runner.build_commands("sync", ["gi", "hsr"])
     assert sync[0][-2:] == ["--games", "gi,hsr"]
 
