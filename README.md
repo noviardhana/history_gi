@@ -246,6 +246,7 @@ git add data/ && git commit -m "update gacha data" && git push
 
 - **Added:** `python -m pipeline` (one command for fetch → preprocess → analytics → sync); CI uses it instead of repeating every script.
 - **Added:** pytest suite in `tests/` (Star Rail LZString decoder vs. the reference library, Luck Score, lookup parser + validation, Genshin preprocessing, radiance model, config, runner); CI runs it first.
+- **Fixed:** `compute_luck` (Luck Score, also used by the dashboard) crashed on newer pandas when a selection had no 5★ Win/Lose rows (e.g. only Standard); regression tests added.
 - **Fixed:** Genshin duplicate removal compared single rows, which would have removed real 3★ pulls (3★ rows always have pity 1). Now only a whole repeated 10-pull is removed. The lookup parser no longer lets an entry without rarity pick up its neighbour's.
 - **Added:** `--mask-uid` / `GACHA_MASK_UID` for the Genshin UID; the CI report links to charts instead of embedding them in private repos.
 - **Changed:** Genshin CSV `data_clean.csv` → `data_clean_gi.csv` (old name still read as a fallback). CI: pip cache, Actions pinned to SHA, Dependabot for Actions.

@@ -54,3 +54,25 @@ def test_accounts_are_scored_separately_and_sorted():
     out = compute_luck(df, GI)
     assert list(out["account"]) == ["lucky", "unlucky"]
     assert out["luck_score"].iloc[0] > out["luck_score"].iloc[1]
+
+
+def test_no_win_lose_rows_and_no_five_star_rows_do_not_crash():
+    """Empty selections (e.g. dashboard filtered to Standard / Beginners only) must not raise on any pandas version.
+    On pandas 3 with Arrow strings, map() over an empty selection returned a string column and .mean() failed."""
+    only_standard = compute_luck(frame([("a", "Standard", 5, 1, None)]), GI)
+    assert only_standard["win_rate_luck"].iloc[0] is None
+    no_five_star = compute_luck(frame([("a", "Standard", 3, 1, None)]), GI)
+    assert no_five_star["luck_score"].iloc[0] is None
+
+
+def test_empty_string_dtype_selection(monkeypatch):
+    """Force the CI situation: the empty .map() result is a string column."""
+    real_map = pd.Series.map
+
+    def string_when_empty(self, arg, *a, **k):
+        out = real_map(self, arg, *a, **k)
+        return out.astype("str") if len(out) == 0 else out
+
+    monkeypatch.setattr(pd.Series, "map", string_when_empty)
+    row = compute_luck(frame([("a", "Standard", 5, 1, None)]), GI).iloc[0]
+    assert row["luck_score"] == 100.0

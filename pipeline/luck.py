@@ -26,14 +26,15 @@ WIN_WEIGHT = 0.4
 
 def compute_luck(df: pd.DataFrame, cfg: GameConfig) -> pd.DataFrame:
     five = df[df["is_5star"]].copy()
-    hard = five["banner_type"].map(cfg.hard_pity).fillna(cfg.default_hard_pity)
+    # to_numeric: on an empty selection map() can return a string column, which has no mean()/arithmetic
+    hard = pd.to_numeric(five["banner_type"].map(cfg.hard_pity), errors="coerce").fillna(cfg.default_hard_pity)
     # 100 if obtained on pull #1, 0 if obtained exactly at hard pity; can go below 0 only if pity > hard pity
     five["pity_luck"] = (1 - (five["pity"] - 1) / (hard - 1)) * 100
     pity_by_acc = five.groupby("account")["pity_luck"].mean()
 
     dec = df[(df["rarity"] == 5) & df["win_50_50"].isin(["Win", "Lose"])].copy()
-    dec["is_win"] = (dec["win_50_50"] == "Win") * 100.0
-    dec["expected"] = dec["banner_type"].map(cfg.rateup_chance).fillna(50.0)
+    dec["is_win"] = (dec["win_50_50"] == "Win").astype(float) * 100.0
+    dec["expected"] = pd.to_numeric(dec["banner_type"].map(cfg.rateup_chance), errors="coerce").fillna(50.0)
     actual_by_acc = dec.groupby("account")["is_win"].mean()
     expected_by_acc = dec.groupby("account")["expected"].mean()
 

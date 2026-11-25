@@ -502,7 +502,7 @@ def insight_banner_performance(df, outdir, ctx):
         .rename("win_rate_5star_pct").reset_index()
     )
     perf = perf.merge(winrate, on="banner_type", how="left")
-    perf["baseline_5star_pct"] = perf["banner_type"].map(cfg.rateup_chance)
+    perf["baseline_5star_pct"] = pd.to_numeric(perf["banner_type"].map(cfg.rateup_chance), errors="coerce")
     perf["_o"] = perf["banner_type"].map(lambda b: banner_index(cfg, b))
     perf = perf.sort_values("_o").drop(columns="_o").reset_index(drop=True)
     save_csv(perf, outdir / "06_banner_performance.csv")

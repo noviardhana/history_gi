@@ -1316,7 +1316,7 @@ def insight_banner_performance(df, cfg, k):
     dec["banner_type"] = dec["banner_type"].astype(str)
     wr = dec.groupby("banner_type")["win_50_50"].agg(n="size", win_rate_5star_pct=lambda s: (s == "Win").mean() * 100).reset_index()
     perf = perf.merge(wr, on="banner_type", how="left")
-    perf["baseline_pct"] = perf["banner_type"].map(cfg.rateup_chance)
+    perf["baseline_pct"] = pd.to_numeric(perf["banner_type"].map(cfg.rateup_chance), errors="coerce")
     colors = [cfg.banner_colors.get(b, "#999999") for b in perf["banner_type"]]
 
     def hbar(x, title, name, text, xtitle):
