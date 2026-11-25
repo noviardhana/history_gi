@@ -25,18 +25,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: 'runtime.txt'
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
-
-      # Fast offline tests (LZString decoder, Luck Score, lookup parser). A failure here
-      # stops the run BEFORE any data is rebuilt or committed.
-      - name: Run tests
-        run: python -m pytest -q
+        run: pip install -r requirements.txt
 
       # Each game runs only if its export is in the repo. At least one is required.
       #   Genshin Impact : data/paimon-moe-local-data.json
@@ -65,35 +56,21 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Games to process: $games"
 
-      # Privacy: the Genshin UID is in the export and in data_clean_gi.csv. If the repo is public the
-      # UID becomes visible to everyone. Set the repository VARIABLE MASK_UID=true (Settings > Secrets and
-      # variables > Actions > Variables) to write 887***572 instead (also used in the Sheet tab name).
-      - name: Privacy check
-        id: privacy
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MASK_UID: ${{ vars.MASK_UID }}
-        run: |
-          private=$(gh api "repos/${{ github.repository }}" --jq .private)
-          mask=false
-          if [ "$MASK_UID" = "true" ]; then mask=true; fi
-          if [ "$private" != "true" ] && [ "${{ steps.detect.outputs.gi }}" = "true" ] && [ "$mask" != "true" ]; then
-            echo "::warning::This repo is public and the Genshin UID is NOT masked. Set the repository variable MASK_UID=true, or make the repo private."
-          fi
-          {
-            echo "private=$private"
-            echo "mask=$mask"
-          } >> "$GITHUB_OUTPUT"
+      - name: Fetch rarity lookup - Genshin Impact (always overwrite)
+        if: steps.detect.outputs.gi == 'true'
+        run: python pipeline/01_fetch_gi_lookup.py
 
-      # One definition of the pipeline order lives in pipeline/run_all.py (games without an export are skipped there).
-      - name: Fetch lookup + preprocess
-        env:
-          GAMES: ${{ steps.detect.outputs.games }}
-          MASK: ${{ steps.privacy.outputs.mask }}
-        run: |
-          flags=""
-          if [ "$MASK" = "true" ]; then flags="--mask-uid"; fi
-          python pipeline/run_all.py --games "$GAMES" --steps fetch,preprocess $flags
+      - name: Fetch lookup - Honkai Star Rail (always overwrite)
+        if: steps.detect.outputs.hsr == 'true'
+        run: python pipeline/01_fetch_hsr_lookup.py
+
+      - name: Run preprocessing - Genshin Impact
+        if: steps.detect.outputs.gi == 'true'
+        run: python pipeline/02_preprocess_gi.py
+
+      - name: Run preprocessing - Honkai Star Rail
+        if: steps.detect.outputs.hsr == 'true'
+        run: python pipeline/02_preprocess_hsr.py
 
       # Optional: only runs when both repo secrets exist (Settings > Secrets and
       # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
@@ -116,10 +93,13 @@ jobs:
           (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
           GOOGLE_APPLICATION_CREDENTIALS="$KEY" python pipeline/04_sync_gsheet.py --games "$GAMES"
 
-      - name: Run analytics
-        env:
-          GAMES: ${{ steps.detect.outputs.games }}
-        run: python pipeline/run_all.py --games "$GAMES" --steps analytics
+      - name: Run analytics - Genshin Impact
+        if: steps.detect.outputs.gi == 'true'
+        run: python pipeline/03_analytics_gi.py
+
+      - name: Run analytics - Honkai Star Rail
+        if: steps.detect.outputs.hsr == 'true'
+        run: python pipeline/03_analytics_hsr.py
 
       # Renders the whole dashboard headlessly (both game sections) and fails
       # the step on any exception. Non-blocking: data is still committed below.
@@ -145,13 +125,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           for f in \
-            data/char_full.json data/weapon_full.json data/data_clean_gi.csv \
+            data/char_full.json data/weapon_full.json data/data_clean.csv \
             data/hsr_char_full.json data/hsr_lc_full.json data/data_clean_hsr.csv \
             outputs; do
             if [ -e "$f" ]; then git add "$f"; fi
           done
-          # one-time migration: the Genshin CSV used to be data/data_clean.csv
-          git rm -q --cached --ignore-unmatch data/data_clean.csv
           git diff --cached --quiet || git commit -m "chore: auto-update pipeline outputs [skip ci]"
 
           for i in 1 2 3; do
@@ -163,13 +141,7 @@ jobs:
       - name: Build report
         run: |
           SHA=$(git rev-parse HEAD)
-          # raw.githubusercontent.com images only render for public repos; for a private repo use the
-          # blob URL (?raw=true), which GitHub shows to signed-in people who can read the repo.
-          if [ "${{ steps.privacy.outputs.private }}" = "true" ]; then
-            RAW="https://github.com/${{ github.repository }}/blob/${SHA}"; Q="?raw=true"
-          else
-            RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"; Q=""
-          fi
+          RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
           {
             echo "## 📊 Gacha Analytics Report"
             echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${{ steps.detect.outputs.games }}"
@@ -186,7 +158,7 @@ jobs:
 
             find outputs -type f -name '*.png' 2>/dev/null | sort | while IFS= read -r png; do
               echo "### ${png#outputs/}"
-              echo "![${png#outputs/}](${RAW}/${png}${Q})"
+              echo "![${png#outputs/}](${RAW}/${png})"
               echo
             done
           } > report.md

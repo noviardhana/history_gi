@@ -1,7 +1,7 @@
 """
 02_preprocess_gi.py
 ====================
-Preprocessing pipeline: paimon-moe-local-data.json -> data_clean_gi.csv
+Preprocessing pipeline: paimon-moe-local-data.json -> data_clean.csv
 
 Converts the raw Paimon.moe export (Genshin Impact wish/gacha history) into
 one tidy table (one row = one pull) ready for EDA & the dashboard
@@ -16,23 +16,19 @@ Input:
     run that script first before this one)
 
 Output:
-    data/data_clean_gi.csv         -> default, all UIDs combined
-    data/data_clean_gi_<uid>.csv   -> when run with --uid <uid>
-    (before the rename the default was data_clean.csv; readers still accept it)
+    data/data_clean.csv            -> default, all UIDs combined
+    data/data_clean_<uid>.csv      -> when run with --uid <uid>
 
 Usage:
-    python3 pipeline/02_preprocess_gi.py                 # all accounts -> data_clean_gi.csv
+    python3 pipeline/02_preprocess_gi.py                 # all accounts -> data_clean.csv
     python3 pipeline/02_preprocess_gi.py --list-uid      # show available UIDs
-    python3 pipeline/02_preprocess_gi.py --uid 887284572 # single account -> data_clean_gi_887284572.csv
+    python3 pipeline/02_preprocess_gi.py --uid 887284572 # single account -> data_clean_887284572.csv
     python3 pipeline/02_preprocess_gi.py --source-tz Asia/Jakarta --tz Asia/Jakarta
     python3 pipeline/02_preprocess_gi.py --keep-duplicates   # skip duplicate removal
-    python3 pipeline/02_preprocess_gi.py --mask-uid          # hide the UID in the CSV
 
 Timezone: the Paimon.moe export has no timezone, so the timestamps are taken as
 --source-tz (default: DEFAULT_TZ in config.py) and converted to --tz (default: the same
 DEFAULT_TZ that the Star Rail script uses). With both defaults nothing is shifted.
-
-Privacy: --mask-uid writes 887***572 instead of the real UID (see README, "Privacy").
 
 Duplicates: pulls with the same account, banner, time, item, pity and rate are dropped
 (only when pity is known, because a real 10-pull can contain the same item twice at the
@@ -46,7 +42,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import CLEAN_CSV, DATA_DIR, DEFAULT_TZ, clean_csv_variant
+from config import DATA_DIR, DEFAULT_TZ
 
 RAW_PATH = DATA_DIR / "paimon-moe-local-data.json"
 CHAR_LOOKUP_PATH = DATA_DIR / "char_full.json"
@@ -99,17 +95,6 @@ def build_account_map(raw: dict) -> dict:
             "wl": raw.get(f"{acc}-wl"),
         }
     return accounts
-
-
-def mask_uid(uid, keep: int = 3):
-    """'887284572' -> '887***572': keeps the first/last `keep` digits so accounts stay tell-apart-able.
-    Short or missing values are returned unchanged (nothing to hide / nothing to mask)."""
-    if uid is None or (isinstance(uid, float) and uid != uid):
-        return uid
-    s = str(int(uid)) if isinstance(uid, float) and uid == int(uid) else str(uid)
-    if len(s) <= keep * 2:
-        return s
-    return s[:keep] + "*" * (len(s) - keep * 2) + s[-keep:]
 
 
 def rarity_and_name(item_id, item_type: str, char_lookup: dict, weapon_lookup: dict):
@@ -257,11 +242,6 @@ def parse_args():
         help="Do not remove duplicate pulls.",
     )
     parser.add_argument(
-        "--mask-uid", action="store_true",
-        help="Write a masked UID (887***572) to the CSV instead of the real one. Affects the dashboard and the "
-             "Google Sheet tab names ('GI - 887***572'). Filtering with --uid still uses the real UID.",
-    )
-    parser.add_argument(
         "--list-uid",
         action="store_true",
         help="Show the UIDs available in the export file, then exit.",
@@ -305,20 +285,15 @@ def main():
             raise ValueError(
                 f"UID '{args.uid}' not found. Available UIDs: {available}"
             )
-        out_path = clean_csv_variant("GI", target_uid)
+        out_path = DATA_DIR / f"data_clean_{target_uid}.csv"
     else:
-        out_path = CLEAN_CSV["GI"]
+        out_path = DATA_DIR / "data_clean.csv"
 
     char_lookup = load_json(CHAR_LOOKUP_PATH)
     weapon_lookup = load_json(WEAPON_LOOKUP_PATH)
 
     df = build_rows(raw, accounts, char_lookup, weapon_lookup)
     df = postprocess(df, args.source_tz, args.tz, args.keep_duplicates)
-    if args.mask_uid:
-        df["uid"] = df["uid"].map(mask_uid)
-        print("[INFO] UID masked in the output file.")
-    else:
-        print("[INFO] The output CSV contains your real UID. Use --mask-uid before publishing it in a public repo.")
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)

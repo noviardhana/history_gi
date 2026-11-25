@@ -44,65 +44,28 @@ ID_RE = re.compile(r"id:\s*'([^']+)'")
 NAME_RE = re.compile(r"name:\s*(?:'([^']*)'|\"([^\"]*)\")")
 RARITY_RE = re.compile(r"rarity:\s*'?(\d+)'?")
 MIN_ITEMS = {"char_full.json": 50, "weapon_full.json": 100}  # sanity floor; real files are larger
-WINDOW = 300  # fallback only: used when an id is not inside any {...} block
-
-
-def _brace_pairs(text: str) -> list:
-    """(start, end) index of every {...} block. Braces inside '...', "..." and `...` strings are ignored."""
-    pairs, stack, quote, i = [], [], None, 0
-    while i < len(text):
-        ch = text[i]
-        if quote:
-            if ch == "\\":
-                i += 1
-            elif ch == quote:
-                quote = None
-        elif ch in "'\"`":
-            quote = ch
-        elif ch == "{":
-            stack.append(i)
-        elif ch == "}" and stack:
-            pairs.append((stack.pop(), i))
-        i += 1
-    return pairs
-
-
-def _own_fields(text: str, pos: int, pairs: list):
-    """Text of the innermost {...} block around `pos`, with nested {...} blocks blanked out.
-    Returns None when `pos` is not inside any block."""
-    around = [p for p in pairs if p[0] < pos < p[1]]
-    if not around:
-        return None
-    start, end = max(around, key=lambda p: p[0])
-    chars = list(text[start + 1:end])
-    for s, e in pairs:
-        if start < s and e < end:
-            for k in range(s - start - 1, e - start):
-                chars[k] = " "
-    return "".join(chars)
+WINDOW = 300  # characters to the left/right of "id:" to search for its name/rarity
 
 
 def parse_lookup(js_text: str) -> dict:
-    """
-    id -> {"name", "rarity"} from a JS object-literal file.
-
-    BUG FIX (v2): the earlier +/-300 char window, even when clamped to the neighbouring "id:" matches,
-    still contained the *neighbour's* name/rarity whenever those fields sit between two ids (for
-    example `{ id: 'a', name: 'A', rarity: 5 }, { name: 'B', id: 'b' }` gave 'b' the name 'A').
-    Now each id only reads the fields of its own enclosing {...} block, so a missing field stays
-    None (and is reported by lookup_utils) instead of silently taking a neighbour's value.
-    """
     result = {}
-    pairs = _brace_pairs(js_text)
     id_matches = list(ID_RE.finditer(js_text))
 
     for i, m in enumerate(id_matches):
         item_id = m.group(1)
-        window = _own_fields(js_text, m.start(), pairs)
-        if window is None:  # not inside braces (unexpected format): fall back to the clamped window
-            prev_end = id_matches[i - 1].end() if i > 0 else 0
-            next_start = id_matches[i + 1].start() if i + 1 < len(id_matches) else len(js_text)
-            window = js_text[max(prev_end, m.start() - WINDOW):min(next_start, m.end() + WINDOW)]
+
+        # BUG FIX: a fixed +/-300 char window can bleed into the previous or
+        # next item's fields when entries sit closer together than that (very
+        # common), silently attaching the WRONG name/rarity to this item_id --
+        # worse than a missing value, since it doesn't show up in the
+        # missing_name/missing_rarity counters below. Clamp the window to the
+        # midpoint boundary with neighboring "id:" matches so it can never
+        # cross into another entry.
+        prev_end = id_matches[i - 1].end() if i > 0 else 0
+        next_start = id_matches[i + 1].start() if i + 1 < len(id_matches) else len(js_text)
+        start = max(prev_end, m.start() - WINDOW)
+        end = min(next_start, m.end() + WINDOW)
+        window = js_text[start:end]
 
         name_m = NAME_RE.search(window)
         name = None

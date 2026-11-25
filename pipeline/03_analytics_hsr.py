@@ -23,7 +23,7 @@ Usage:
 """
 
 from analytics_core import run_cli
-from config import HSR as CONFIG, OUTPUT_DIR, resolve_clean_csv  # per-game settings (pity, rate-up, colours) live in config.py
+from config import DATA_DIR, HSR as CONFIG, OUTPUT_DIR  # per-game settings (pity, rate-up, colours) live in config.py
 
 if __name__ == "__main__":
-    run_cli(CONFIG, resolve_clean_csv("HSR"), OUTPUT_DIR / "hsr", "pipeline/02_preprocess_hsr.py")
+    run_cli(CONFIG, DATA_DIR / "data_clean_hsr.csv", OUTPUT_DIR / "hsr", "pipeline/02_preprocess_hsr.py")

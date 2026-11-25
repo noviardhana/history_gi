@@ -5,7 +5,7 @@ Preprocessing pipeline: starrailstation-backup_*.dat -> data_clean_hsr.csv
 
 Converts the StarRailStation backup (Honkai: Star Rail warp history) into one
 tidy table (one row = one warp), with the same column layout as the Genshin
-data_clean_gi.csv so the dashboard can reuse the same logic.
+data_clean.csv so the dashboard can reuse the same logic.
 
 Input:
     data/starrailstation-backup_YYYY-MM-DD.dat  -> raw backup (latest one is picked automatically)
@@ -39,7 +39,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import CLEAN_CSV, DATA_DIR, DEFAULT_TZ, ROOT_DIR, clean_csv_variant
+from config import DATA_DIR, DEFAULT_TZ, ROOT_DIR
 
 BACKUP_GLOB = "starrailstation-backup_*.dat"
 CHAR_LOOKUP_PATH = DATA_DIR / "hsr_char_full.json"
@@ -354,9 +354,9 @@ def main():
             available = ", ".join(f"{k} ({p['name']})" for k, p in profiles.items())
             raise ValueError(f"Profile '{args.profile}' not found. Available: {available}")
         profiles = selected
-        out_path = clean_csv_variant("HSR", slugify(next(iter(profiles.values()))["name"]))
+        out_path = DATA_DIR / f"data_clean_hsr_{slugify(next(iter(profiles.values()))['name'])}.csv"
     else:
-        out_path = CLEAN_CSV["HSR"]
+        out_path = DATA_DIR / "data_clean_hsr.csv"
 
     char_lookup = load_json(CHAR_LOOKUP_PATH)
     lc_lookup = load_json(LC_LOOKUP_PATH)
