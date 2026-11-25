@@ -1,6 +1,6 @@
 """
-03_dashboard.py
-================
+dashboard.py
+============
 Interactive Streamlit dashboard for gacha analytics, one section per game:
 
     Genshin Impact  |  Honkai: Star Rail
@@ -14,15 +14,15 @@ Each game section is self-contained and has the same structure:
        Top Items, Latest 5*, History)
 
 Per-game rules (pity, soft pity, rate-up chance, banners, colours) come from
-game_configs.py, and the Luck Score is computed by compute_luck() from
-analytics_common.py, so the dashboard, the PNG reports and the Google Sheet agree.
+pipeline/config.py, and the Luck Score is computed by compute_luck() from
+pipeline/luck.py, so the dashboard, the PNG reports and the Google Sheet agree.
 
 Usage:
-    pip install streamlit pandas plotly matplotlib
-    streamlit run 03_dashboard.py
+    pip install streamlit pandas plotly
+    streamlit run dashboard.py
 
     Custom data files:
-    streamlit run 03_dashboard.py -- --gi-data data/data_clean_887284572.csv --hsr-data data/data_clean_hsr.csv
+    streamlit run dashboard.py -- --gi-data data/data_clean_887284572.csv --hsr-data data/data_clean_hsr.csv
 
 Run from the project root; CSV files beside this script are detected automatically.
 """
@@ -39,8 +39,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
 
-from analytics_common import compute_luck
-from game_configs import GAMES, GameConfig
+from pipeline.luck import compute_luck
+from pipeline.config import GAMES, GameConfig
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -49,7 +49,7 @@ DEFAULT_DATA = {
     "GI": BASE_DIR / "data_clean.csv" if (BASE_DIR / "data_clean.csv").exists() else DATA_DIR / "data_clean.csv",
     "HSR": BASE_DIR / "data_clean_hsr.csv" if (BASE_DIR / "data_clean_hsr.csv").exists() else DATA_DIR / "data_clean_hsr.csv",
 }
-PREPROCESS_HINT = {"GI": "01_preprocessing.py", "HSR": "01_preprocessing_hsr.py"}
+PREPROCESS_HINT = {"GI": "pipeline/02_preprocess_gi.py", "HSR": "pipeline/02_preprocess_hsr.py"}
 
 # ----------------------------------------------------------------------------
 # Design tokens — dark navy theme matching .streamlit/config.toml
@@ -442,7 +442,7 @@ def current_pity(df: pd.DataFrame, banner: str, star: int = 5):
 
 
 def luck_table(df: pd.DataFrame, cfg: GameConfig) -> pd.DataFrame:
-    """Luck Score per account using the shared formula from analytics_common."""
+    """Luck Score per account using the shared formula from pipeline/luck.py."""
     d = df.copy()
     d["banner_type"] = d["banner_type"].astype(object)
     return compute_luck(d, cfg)
@@ -1142,7 +1142,7 @@ def insight_expected_vs_actual(df, cfg, k):
     skipped = order_banners(cfg, d.loc[d["rate"].isna(), "banner_type"].dropna().astype(str).unique())
     d = d[d["rate"].notna()].copy()
     if d.empty:
-        st.warning("No banner in the current selection has an expected 5★ rate (see expected_rate_5 in game_configs.py).")
+        st.warning("No banner in the current selection has an expected 5★ rate (see expected_rate_5 in pipeline/config.py).")
         return
     banners = order_banners(cfg, d["banner_type"].dropna().astype(str).unique())
     d["expected_cum"] = d["rate"].cumsum()
@@ -1173,7 +1173,7 @@ def insight_expected_vs_actual(df, cfg, k):
     chart_note(f"<b>{actual}</b> five-star obtained vs <b>{expected:.1f}</b> expected: "
                f"{'ahead by' if gap >= 0 else 'behind by'} <b>{abs(gap):.1f}</b>. "
                f"Expected rates used (consolidated, pity included): {rates}. "
-               + (f"Left out (no expected rate in game_configs.py): {', '.join(skipped)}. " if skipped else "")
+               + (f"Left out (no expected rate in pipeline/config.py): {', '.join(skipped)}. " if skipped else "")
                + "A gap of a few 5★ either way is normal variance, not proof of good or bad luck.")
     with st.expander("Data Details"):
         show_df(daily)

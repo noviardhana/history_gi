@@ -1,10 +1,10 @@
 """
 04_sync_gsheet.py
-==================
+=================
 Sync the wish / warp history of both games to one Google Sheet:
 
-    Genshin Impact   data/data_clean.csv       (01_preprocessing.py)
-    Honkai: Star Rail data/data_clean_hsr.csv  (01_preprocessing_hsr.py)
+    Genshin Impact    data/data_clean.csv      (02_preprocess_gi.py)
+    Honkai: Star Rail data/data_clean_hsr.csv  (02_preprocess_hsr.py)
 
 Layout
 ------
@@ -20,7 +20,7 @@ No. | Date | Name | Rarity | Pity | Result.
   - Newest pull first. "No." is the pull's position inside its banner.
   - Above each table: pulls, 5*/4* counts and the current 5*/4* pity.
   - Result = Win / Lose / Guaranteed (50-50 outcome; "-" on Standard/Beginners).
-Banners, hard pity and colours come from game_configs.py.
+Banners, hard pity and colours come from config.py.
 
 Safety (existing data is never deleted)
 ---------------------------------------
@@ -30,14 +30,17 @@ Safety (existing data is never deleted)
     with partial history) is skipped with a warning; use --force to override.
   - Old GI tabs from before the prefix change (named after the account) are
     renamed to the new "GI - ..." name, not duplicated.
+  - A tab is never cleared in place: the new content is written to a temporary
+    tab ("~new <title>") first and swapped in only when that succeeded. If the
+    write fails (quota, network) the existing tab stays exactly as it was.
 
 Usage
 -----
     pip install pandas gspread
-    python3 04_sync_gsheet.py --preprocess          # raw data -> CSV -> Google Sheet
-    python3 04_sync_gsheet.py                       # CSV -> Google Sheet (both games)
-    python3 04_sync_gsheet.py --games hsr           # only one game (gi / hsr)
-    python3 04_sync_gsheet.py --dry-run             # no Google access, just a preview
+    python3 pipeline/04_sync_gsheet.py --preprocess   # raw data -> CSV -> Google Sheet
+    python3 pipeline/04_sync_gsheet.py                # CSV -> Google Sheet (both games)
+    python3 pipeline/04_sync_gsheet.py --games hsr    # only one game (gi / hsr)
+    python3 pipeline/04_sync_gsheet.py --dry-run      # no Google access, just a preview
 
 Settings, in order of priority (flag > environment > file):
     credentials/secret.toml   [gsheet] spreadsheet_id  +  [gcp_service_account] (default)
@@ -60,19 +63,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from game_configs import GAMES, GameConfig
+from config import CREDENTIALS_DIR, DATA_DIR, GAMES, GameConfig
 
 try:  # Python 3.11+
     import tomllib
 except ModuleNotFoundError:  # older Python: pip install tomli
     tomllib = None
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CSV = {"GI": DATA_DIR / "data_clean.csv", "HSR": DATA_DIR / "data_clean_hsr.csv"}
-PREPROCESS_SCRIPT = {"GI": "01_preprocessing.py", "HSR": "01_preprocessing_hsr.py"}
-DEFAULT_SECRETS = BASE_DIR / "credentials" / "secret.toml"
-DEFAULT_CREDS = BASE_DIR / "credentials" / "service_account.json"
+PREPROCESS_SCRIPT = {"GI": "02_preprocess_gi.py", "HSR": "02_preprocess_hsr.py"}
+DEFAULT_SECRETS = CREDENTIALS_DIR / "secret.toml"
+DEFAULT_CREDS = CREDENTIALS_DIR / "service_account.json"
 
 COLUMNS = ["No.", "Date", "Name", "Rarity", "Pity", "Result"]
 COL_WIDTHS = [55, 130, 200, 65, 55, 100]  # pixels, per table column
@@ -298,24 +300,67 @@ def existing_total(ws):
         return None
 
 
+TMP_PREFIX, OLD_PREFIX = "~new ", "~old "
+
+
+def swap_tab(sh, old_ws, new_ws, title: str):
+    """
+    Put the fully written `new_ws` in place of `old_ws` under `title`.
+    The old tab is renamed (not deleted) first, so if anything fails the data
+    still exists under some name; it is only deleted once the new tab is live.
+    """
+    if old_ws is None:
+        new_ws.update_title(title)
+        return
+    backup = f"{OLD_PREFIX}{title}"[:99]
+    old_ws.update_title(backup)
+    try:
+        new_ws.update_title(title)
+    except Exception:
+        old_ws.update_title(title)  # put the old tab back
+        raise
+    try:
+        sh.del_worksheet(old_ws)
+    except Exception as exc:  # new tab is already live; just leave the leftover and say so
+        print(f"[WARN] '{title}' updated, but the old copy '{backup}' could not be deleted: {exc}")
+
+
+def write_tab(sh, cfg, grid, title, old_ws, pos, existing):
+    """Write the grid + formatting into a temporary tab, then swap it in. The old tab is never touched until this succeeds."""
+    width = n_cols(cfg)
+    tmp_title = f"{TMP_PREFIX}{title}"[:99]
+    leftover = existing.pop(tmp_title, None)  # unfinished tab from an earlier failed run
+    if leftover is not None:
+        sh.del_worksheet(leftover)
+    new_ws = sh.add_worksheet(title=tmp_title, rows=max(len(grid) + 5, 50), cols=width, index=pos)
+    try:
+        new_ws.update(values=grid, range_name="A1")
+        sh.batch_update({"requests": build_format_requests(cfg, new_ws.id, len(grid), 0)})
+        swap_tab(sh, old_ws, new_ws, title)
+    except Exception:
+        try:  # remove the unfinished temporary tab; the old tab is still intact
+            sh.del_worksheet(new_ws)
+        except Exception:
+            pass
+        raise
+    return new_ws
+
+
 def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
-    """frames: list of (GameConfig, DataFrame). Returns the number of tabs written."""
+    """frames: list of (GameConfig, DataFrame). Returns (tabs_written, failed_titles)."""
     synced_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     existing = {ws.title: ws for ws in sh.worksheets()}
-    try:
-        meta = sh.fetch_sheet_metadata({"fields": "sheets(properties.sheetId,conditionalFormats)"})
-        rule_counts = {s["properties"]["sheetId"]: len(s.get("conditionalFormats", [])) for s in meta.get("sheets", [])}
-    except Exception:
-        rule_counts = {}
+    for t in existing:
+        if t.startswith(OLD_PREFIX):
+            print(f"[WARN] leftover backup tab '{t}' found (a previous run was interrupted); check it, then delete it by hand.")
 
-    used, written, pos = set(), 0, 0
+    used, written, failed, pos = set(), 0, [], 0
     for cfg, df in frames:
         for acc in account_order(df):
             acc_df = df[df["account"] == acc]
             uid = uid_of(acc_df)
             title = tab_title(cfg, acc, uid, used, gi_tab_name)
             grid, _ = build_account_grid(cfg, acc_df, str(acc), synced_at, include_3star)
-            width = n_cols(cfg)
 
             ws = existing.get(title)
             if ws is None and cfg.key == "GI":
@@ -338,13 +383,16 @@ def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
                         print(f"::warning::Google Sheets sync skipped {msg}")
                     pos += 1
                     continue
-            else:
-                ws = sh.add_worksheet(title=title, rows=max(len(grid) + 5, 50), cols=width, index=pos)
 
-            ws.clear()
-            ws.resize(rows=max(len(grid) + 5, 50), cols=width)
-            ws.update(values=grid, range_name="A1")
-            sh.batch_update({"requests": build_format_requests(cfg, ws.id, len(grid), rule_counts.get(ws.id, 0))})
+            try:
+                existing[title] = write_tab(sh, cfg, grid, title, ws, pos, existing)
+            except Exception as exc:
+                print(f"[FAIL] '{title}': {exc}  (the existing tab was left unchanged)")
+                if os.environ.get("GITHUB_ACTIONS"):
+                    print(f"::warning::Google Sheets sync failed for '{title}': {exc}")
+                failed.append(title)
+                pos += 1
+                continue
             print(f"[OK]   '{title}': {len(acc_df):,} pulls synced")
             written += 1
             pos += 1
@@ -359,7 +407,7 @@ def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
                         sh.del_worksheet(ws)
                 except Exception:
                     pass
-    return written
+    return written, failed
 
 
 # ----------------------------------------------------------------------------
@@ -396,7 +444,7 @@ def parse_args():
     p.add_argument("--secrets", default=str(DEFAULT_SECRETS), help="Path to secret.toml")
     p.add_argument("--creds", default=os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"),
                    help="Service-account JSON key (alternative to secret.toml)")
-    p.add_argument("--preprocess", action="store_true", help="Run the 01_preprocessing script of each selected game first")
+    p.add_argument("--preprocess", action="store_true", help="Run the 02_preprocess script of each selected game first")
     p.add_argument("--include-3star", action="store_true", help="Also list 3* pulls")
     p.add_argument("--force", action="store_true", help="Overwrite tabs even if the new data has fewer pulls")
     p.add_argument("--dry-run", action="store_true", help="Build tables and print a preview; no Google access")
@@ -414,7 +462,7 @@ def main():
     if args.preprocess:
         for key in selected:
             print(f"Running {PREPROCESS_SCRIPT[key]} ...")
-            subprocess.run([sys.executable, str(BASE_DIR / PREPROCESS_SCRIPT[key])], check=True)
+            subprocess.run([sys.executable, str(SCRIPT_DIR / PREPROCESS_SCRIPT[key])], check=True)
 
     frames = []
     for key in selected:
@@ -464,8 +512,10 @@ def main():
         sys.exit(f"No credentials found. Fill in {args.secrets} (see [gcp_service_account]).")
 
     sh = client.open_by_key(sheet_id)
-    n = sync(frames, sh, include_3star=args.include_3star, force=args.force, gi_tab_name=args.gi_tab_name)
+    n, failed = sync(frames, sh, include_3star=args.include_3star, force=args.force, gi_tab_name=args.gi_tab_name)
     print(f"\nDone. {n} tab(s) updated: {sh.url}")
+    if failed:
+        sys.exit(f"{len(failed)} tab(s) failed and were left unchanged: {', '.join(failed)}")
 
 
 if __name__ == "__main__":

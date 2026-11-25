@@ -1,19 +1,35 @@
 """
-game_configs.py
-===============
-Single source of truth for per-game settings. Imported by:
-    - analytics_common.py / 02_analytics.py / 02_analytics_hsr.py  (charts + Luck Score)
-    - 03_dashboard.py                                              (Streamlit dashboard)
-    - 04_sync_gsheet.py                                            (Google Sheets)
+config.py
+=========
+Single source of truth for per-game settings AND project paths. Imported by:
+    - pipeline/01_fetch_*_lookup.py, 02_preprocess_*.py     (paths)
+    - pipeline/03_analytics_gi.py / 03_analytics_hsr.py     (charts + Luck Score)
+    - pipeline/04_sync_gsheet.py                            (Google Sheets)
+    - dashboard.py (project root)                           (Streamlit dashboard)
 
 Pure standard library on purpose (no pandas / matplotlib), so lightweight
 scripts such as the Google Sheets sync can import it without extra packages.
+
+Project paths (relative to the project root, one level above pipeline/):
+    data/          raw exports, lookup JSON, data_clean*.csv
+    outputs/       gi/ and hsr/  (analytics CSV + PNG)
+    credentials/   secret.toml (git-ignored)
 
 To change a pity value, a rate-up chance or a banner colour, change it here
 and every script follows.
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
+
+# --- project paths -------------------------------------------------------
+ROOT_DIR = Path(__file__).resolve().parents[1]   # project root (parent of pipeline/)
+DATA_DIR = ROOT_DIR / "data"
+OUTPUT_DIR = ROOT_DIR / "outputs"
+CREDENTIALS_DIR = ROOT_DIR / "credentials"
+
+# Timezone of the `datetime` column in every data_clean*.csv, so both games are comparable.
+DEFAULT_TZ = "Asia/Jakarta"
 
 
 @dataclass

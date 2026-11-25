@@ -58,19 +58,19 @@ jobs:
 
       - name: Fetch rarity lookup - Genshin Impact (always overwrite)
         if: steps.detect.outputs.gi == 'true'
-        run: python 00_fetch_rarity_lookup.py
+        run: python pipeline/01_fetch_gi_lookup.py
 
       - name: Fetch lookup - Honkai Star Rail (always overwrite)
         if: steps.detect.outputs.hsr == 'true'
-        run: python 00_fetch_hsr_lookup.py
+        run: python pipeline/01_fetch_hsr_lookup.py
 
       - name: Run preprocessing - Genshin Impact
         if: steps.detect.outputs.gi == 'true'
-        run: python 01_preprocessing.py
+        run: python pipeline/02_preprocess_gi.py
 
       - name: Run preprocessing - Honkai Star Rail
         if: steps.detect.outputs.hsr == 'true'
-        run: python 01_preprocessing_hsr.py
+        run: python pipeline/02_preprocess_hsr.py
 
       # Optional: only runs when both repo secrets exist (Settings > Secrets and
       # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
@@ -91,26 +91,28 @@ jobs:
           KEY="$RUNNER_TEMP/gcp_sa.json"
           trap 'rm -f "$KEY"' EXIT
           (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
-          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python 04_sync_gsheet.py --games "$GAMES"
+          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python pipeline/04_sync_gsheet.py --games "$GAMES"
 
       - name: Run analytics - Genshin Impact
         if: steps.detect.outputs.gi == 'true'
-        run: python 02_analytics.py
+        run: python pipeline/03_analytics_gi.py
 
       - name: Run analytics - Honkai Star Rail
         if: steps.detect.outputs.hsr == 'true'
-        run: python 02_analytics_hsr.py
+        run: python pipeline/03_analytics_hsr.py
 
       # Renders the whole dashboard headlessly (both game sections) and fails
       # the step on any exception. Non-blocking: data is still committed below.
       - name: Smoke-test dashboard
         continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python - <<'PY'
           import sys
           from streamlit.testing.v1 import AppTest
 
-          at = AppTest.from_file("03_dashboard.py", default_timeout=180).run()
+          at = AppTest.from_file("dashboard.py", default_timeout=180).run()
           errors = [str(e.value).replace("\n", " ")[:300] for e in at.exception]
           if errors:
               print("::warning::Dashboard raised an exception: " + errors[0])
@@ -145,7 +147,7 @@ jobs:
             echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${{ steps.detect.outputs.games }}"
             echo
 
-            # outputs/GI/ and outputs/HSR/ (one folder per game)
+            # outputs/gi/ and outputs/hsr/ (one folder per game)
             find outputs -type f -name '*.csv' 2>/dev/null | sort | while IFS= read -r csv; do
               echo "### ${csv#outputs/}"
               echo '```'

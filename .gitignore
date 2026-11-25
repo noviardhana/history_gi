@@ -1,24 +1,59 @@
-# --- Secrets (never commit) ---
+# ============================================================
+# Secrets (never commit)
+# ============================================================
 credentials/
 secret.toml
 secrets.toml
 .env
+.env.*
+!.env.example
 service_account*.json
-haha-498910-*.json        # nama default file key dari Google Cloud
+# Default key file name from Google Cloud: <project-id>-<hash>.json
+haha-498910-*.json
 
-# --- Python ---
+# ============================================================
+# Python
+# ============================================================
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+env/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
 
-# --- OS / Editor ---
+# ============================================================
+# Generated locally (not part of the repo)
+# ============================================================
+# half-written files, e.g. data/*.json.tmp from the lookup fetch
+*.tmp
+*.log
+# CI report, only built on the runner
+report.md
+report_trimmed.md
+
+# ============================================================
+# OS / Editor
+# ============================================================
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
 
-# --- NOTE: keep these TRACKED ---
-# data/ and outputs/     -> CI triggers on data/paimon-moe-local-data.json
-#                           and commits data/ + outputs/ back to main
-# .streamlit/config.toml -> dashboard theme
+# ============================================================
+# Keep these TRACKED (do not add them above)
+# ============================================================
+# data/                  CI triggers on data/paimon-moe-local-data.json and
+#                        data/starrailstation-backup_*.dat, and commits the
+#                        lookup JSON + data_clean*.csv back to main
+# outputs/               gi/ and hsr/, committed back by CI
+# pipeline/              all scripts except the dashboard
+# .streamlit/config.toml dashboard theme
+# .github/workflows/     CI
+# requirements.txt, runtime.txt

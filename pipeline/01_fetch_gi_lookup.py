@@ -1,6 +1,7 @@
 """
-00_fetch_rarity_lookup.py
-===========================
+01_fetch_gi_lookup.py
+=====================
+(Genshin Impact)
 The Paimon.moe export (paimon-moe-local-data.json) ONLY contains item id,
 timestamp, type (character/weapon), and pity per pull -- it has NO rarity
 info (3/4/5-star) or official item name. For EDA (5-star pity distribution,
@@ -17,18 +18,17 @@ Output:
     data/char_full.json    -> { item_id: {"name": ..., "rarity": ...}, ... }
     data/weapon_full.json  -> { item_id: {"name": ..., "rarity": ...}, ... }
 
-Run this script ONCE before 01_preprocessing.py (or re-run to refresh with
+Run this script ONCE before 02_preprocess_gi.py (or re-run to refresh with
 the latest data from the repo). Requires internet access to
 raw.githubusercontent.com.
 """
 
-import json
+import argparse
 import re
-import urllib.request
-from pathlib import Path
+import sys
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+from config import DATA_DIR
+from lookup_utils import fetch_text, finish, publish_lookup
 
 REPO_RAW_BASE = "https://raw.githubusercontent.com/MadeBaruna/paimon-moe/main"
 SOURCES = {
@@ -43,12 +43,8 @@ SOURCES = {
 ID_RE = re.compile(r"id:\s*'([^']+)'")
 NAME_RE = re.compile(r"name:\s*(?:'([^']*)'|\"([^\"]*)\")")
 RARITY_RE = re.compile(r"rarity:\s*'?(\d+)'?")
+MIN_ITEMS = {"char_full.json": 50, "weapon_full.json": 100}  # sanity floor; real files are larger
 WINDOW = 300  # characters to the left/right of "id:" to search for its name/rarity
-
-
-def fetch_text(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=30) as resp:
-        return resp.read().decode("utf-8")
 
 
 def parse_lookup(js_text: str) -> dict:
@@ -84,24 +80,29 @@ def parse_lookup(js_text: str) -> dict:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Fetch the Genshin id -> name/rarity lookup.")
+    parser.add_argument("--force", action="store_true", help="Write the result even if it fails the sanity checks.")
+    args = parser.parse_args()
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+    results = {}
     for out_filename, url in SOURCES.items():
         print(f"Fetching {url} ...")
-        js_text = fetch_text(url)
-        lookup = parse_lookup(js_text)
-
-        missing_name = [k for k, v in lookup.items() if v["name"] is None]
-        missing_rarity = [k for k, v in lookup.items() if v["rarity"] is None]
-        print(f"  -> {len(lookup)} item(s) found "
-              f"({len(missing_name)} without name, {len(missing_rarity)} without rarity)")
-
         out_path = DATA_DIR / out_filename
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(lookup, f, ensure_ascii=False, indent=2)
-        print(f"  -> saved to {out_path}")
+        try:
+            lookup = parse_lookup(fetch_text(url))
+        except ConnectionError as exc:
+            print(f"  [ERROR] {exc}")
+            results[out_filename] = "kept" if out_path.exists() else "failed"
+            continue
+        print(f"  -> {len(lookup)} item(s) found")
+        results[out_filename] = publish_lookup(out_path, lookup, MIN_ITEMS[out_filename], force=args.force)
 
-    print("\nDone. Next, run 01_preprocessing.py")
+    code = finish(results)
+    if code == 0:
+        print("\nDone. Next, run 02_preprocess_gi.py")
+    sys.exit(code)
 
 
 if __name__ == "__main__":

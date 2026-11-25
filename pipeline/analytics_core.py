@@ -1,8 +1,8 @@
 """
-analytics_common.py
-===================
-Shared analytics engine used by 02_analytics.py (Genshin Impact) and
-02_analytics_hsr.py (Honkai: Star Rail).
+analytics_core.py
+=================
+Shared analytics engine used by 03_analytics_gi.py (Genshin Impact) and
+03_analytics_hsr.py (Honkai: Star Rail).
 
 Both games run through exactly the same code, so the chart style and the
 Luck Score formula are identical. Only the GameConfig differs.
@@ -16,7 +16,7 @@ Insights (same order as the dashboard storytelling):
     6. Banner Performance
     7. Luck Score
 
-Luck Score (identical for both games):
+Luck Score (identical for both games; implemented in luck.py):
     pity_luck  = mean over 5* pulls of (1 - (pity - 1) / (hard_pity - 1)) * 100
     win_luck   = 50 * actual 5* rate-up win rate / expected win rate, where the
                  expected rate is the official rate-up chance of the banner of
@@ -40,6 +40,13 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
+try:  # imported as part of the package (dashboard.py) ...
+    from .config import GameConfig
+    from .luck import compute_luck
+except ImportError:  # ... or run as a script from pipeline/
+    from config import GameConfig
+    from luck import compute_luck
+
 # ---------------------------------------------------------------------------
 # Design tokens
 # ---------------------------------------------------------------------------
@@ -52,24 +59,7 @@ RARITY_COLORS = {5: "#D9A441", 4: "#8E6BBF", 3: "#6C8EBF"}
 OUTCOME_COLORS = {"Win": "#4C9F70", "Lose": "#C8553D", "Guaranteed": "#E0B04A"}
 LUCK_COLORS = {"pity": "#5B8FD6", "win": "#4C9F70", "score": "#D9A441"}
 
-PITY_WEIGHT = 0.6
-WIN_WEIGHT = 0.4
 LOW_SAMPLE = 5  # fewer decisive Win/Lose outcomes than this -> bar is faded
-
-
-@dataclass
-class GameConfig:
-    key: str                # "GI" / "HSR"
-    title: str              # "Genshin Impact"
-    pull_word: str          # "Wish" / "Warp"
-    source_label: str       # where the data came from (footer)
-    banner_order: list
-    banner_colors: dict
-    hard_pity: dict         # per banner, official 5* hard pity (reference)
-    rateup_chance: dict     # per banner, official chance (%) that a 5* is the rate-up item
-    gear_category: str      # item_category value of the gear: "weapon" / "light_cone"
-    gear_label: str         # "Weapon" / "Light Cone"
-    default_hard_pity: int = 90
 
 
 @dataclass
@@ -210,7 +200,7 @@ def insight_total_pull(df, outdir, ctx):
     summary = df.groupby("account").agg(**agg).reset_index()
     summary["pct_5star"] = (summary["pull_5star"] / summary["total_pull"] * 100).round(2)
     summary["pct_4star"] = (summary["pull_4star"] / summary["total_pull"] * 100).round(2)
-    save_csv(summary, outdir / "01_total_pull_progress_akun.csv")
+    save_csv(summary, outdir / "01_total_pull_progress.csv")
 
     has_progress = (
         {"adventure_rank", "world_level"} <= set(summary.columns)
@@ -264,7 +254,7 @@ def insight_total_pull(df, outdir, ctx):
     ax2.set_xticklabels(summary["account"])
     ax2.legend(loc="upper center", bbox_to_anchor=(0.5, -0.09), ncol=2)
 
-    finish(fig, outdir / "01_total_pull_progress_akun.png", ctx, "Total Pull & Account Progress")
+    finish(fig, outdir / "01_total_pull_progress.png", ctx, "Total Pull & Account Progress")
     return summary
 
 
@@ -278,7 +268,7 @@ def insight_timeline(df, outdir, ctx):
     timeline = (
         df.groupby(["year_month", "banner_type"]).size().reset_index(name="pull_count").sort_values("year_month")
     )
-    save_csv(timeline, outdir / "02_timeline_wish.csv")
+    save_csv(timeline, outdir / "02_timeline.csv")
 
     pivot = timeline.pivot(index="year_month", columns="banner_type", values="pull_count").fillna(0)
     pivot = pivot.reindex(columns=[b for b in cfg.banner_order if b in pivot.columns])
@@ -309,7 +299,7 @@ def insight_timeline(df, outdir, ctx):
     ax.set_title(f"Monthly {cfg.pull_word}s by Banner")
     ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0))
 
-    finish(fig, outdir / "02_timeline_wish.png", ctx, f"{cfg.pull_word} Timeline")
+    finish(fig, outdir / "02_timeline.png", ctx, f"{cfg.pull_word} Timeline")
     return timeline
 
 
@@ -569,46 +559,8 @@ def insight_banner_performance(df, outdir, ctx):
 
 
 # ---------------------------------------------------------------------------
-# 7. Luck Score  (single implementation shared by both games)
+# 7. Luck Score  (formula lives in luck.py, shared with the dashboard)
 # ---------------------------------------------------------------------------
-def compute_luck(df: pd.DataFrame, cfg: GameConfig) -> pd.DataFrame:
-    five = df[df["is_5star"]].copy()
-    hard = five["banner_type"].map(cfg.hard_pity).fillna(cfg.default_hard_pity)
-    # 100 if obtained on pull #1, 0 if obtained exactly at hard pity; can go below 0 only if pity > hard pity
-    five["pity_luck"] = (1 - (five["pity"] - 1) / (hard - 1)) * 100
-    pity_by_acc = five.groupby("account")["pity_luck"].mean()
-
-    dec = df[(df["rarity"] == 5) & df["win_50_50"].isin(["Win", "Lose"])].copy()
-    dec["is_win"] = (dec["win_50_50"] == "Win") * 100.0
-    dec["expected"] = dec["banner_type"].map(cfg.rateup_chance).fillna(50.0)
-    actual_by_acc = dec.groupby("account")["is_win"].mean()
-    expected_by_acc = dec.groupby("account")["expected"].mean()
-
-    rows = []
-    for acc in df["account"].unique():
-        pity_luck = pity_by_acc.get(acc, float("nan"))
-        actual = actual_by_acc.get(acc, float("nan"))
-        expected = expected_by_acc.get(acc, float("nan"))
-        win_luck = 50 * actual / expected if pd.notna(actual) and pd.notna(expected) and expected > 0 else float("nan")
-
-        parts = []
-        if pd.notna(pity_luck):
-            parts.append((pity_luck, PITY_WEIGHT))
-        if pd.notna(win_luck):
-            parts.append((win_luck, WIN_WEIGHT))
-        score = sum(v * w for v, w in parts) / sum(w for _, w in parts) if parts else float("nan")
-
-        rows.append({
-            "account": acc,
-            "avg_pity_luck": round(pity_luck, 1) if pd.notna(pity_luck) else None,
-            "win_rate_5star_pct": round(actual, 1) if pd.notna(actual) else None,
-            "expected_win_rate_pct": round(expected, 1) if pd.notna(expected) else None,
-            "win_rate_luck": round(win_luck, 1) if pd.notna(win_luck) else None,
-            "luck_score": round(score, 1) if pd.notna(score) else None,
-        })
-    return pd.DataFrame(rows).sort_values("luck_score", ascending=False).reset_index(drop=True)
-
-
 def insight_luck_score(df, outdir, ctx):
     print("\n[7] Luck Score")
     luck = compute_luck(df, ctx.cfg)
