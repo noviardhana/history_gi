@@ -1,9 +1,9 @@
 banner_type,rarity,win_50_50,count
-Character Event,4,Guaranteed,142
-Character Event,4,Lose,144
-Character Event,4,Win,153
+Character Event,4,Guaranteed,143
+Character Event,4,Lose,146
+Character Event,4,Win,154
 Character Event,5,Guaranteed,15
-Character Event,5,Lose,17
+Character Event,5,Lose,18
 Character Event,5,Win,24
 Weapon Event,4,Guaranteed,33
 Weapon Event,4,Lose,33
