@@ -1,0 +1,187 @@
+name: Gacha Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/paimon-moe-local-data.json'
+      - 'data/starrailstation-backup_*.dat'
+      - '.github/workflows/cml.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wish-pipeline-main
+  cancel-in-progress: false
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      # Optional repository variable (Settings > Secrets and variables > Actions > Variables):
+      # set GACHA_MASK_UID to 1 to mask the Genshin UID in data/data_clean_gi.csv (887284572 -> 88xxxxx72).
+      GACHA_MASK_UID: ${{ vars.GACHA_MASK_UID }}
+    steps:
+      # Actions are pinned to a commit SHA (the comment is the tag); Dependabot keeps them current.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version-file: 'runtime.txt'
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Unit tests first: a broken decoder / parser / Luck Score stops the run before any data is touched.
+      - name: Run tests
+        run: python -m pytest -q
+
+      # Each game runs only if its export is in the repo. At least one is required.
+      #   Genshin Impact : data/paimon-moe-local-data.json
+      #   Honkai: Star Rail: data/starrailstation-backup_YYYY-MM-DD.dat
+      - name: Detect game exports
+        id: detect
+        run: |
+          gi=false
+          hsr=false
+          if [ -f "data/paimon-moe-local-data.json" ]; then gi=true; fi
+          if ls data/starrailstation-backup_*.dat > /dev/null 2>&1; then hsr=true; fi
+
+          if [ "$gi" = false ] && [ "$hsr" = false ]; then
+            echo "::error::No export found. Add data/paimon-moe-local-data.json (Genshin Impact) and/or data/starrailstation-backup_YYYY-MM-DD.dat (Honkai: Star Rail)."
+            exit 1
+          fi
+
+          games=""
+          if [ "$gi" = true ]; then games="gi"; fi
+          if [ "$hsr" = true ]; then games="${games:+$games,}hsr"; fi
+
+          {
+            echo "gi=$gi"
+            echo "hsr=$hsr"
+            echo "games=$games"
+          } >> "$GITHUB_OUTPUT"
+          echo "Games to process: $games"
+
+      # `python -m pipeline <stage>` runs the matching script of every detected game
+      # (pipeline/__main__.py). A rejected lookup download keeps the existing file.
+      - name: Fetch lookups
+        env:
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: python -m pipeline fetch --games "$GAMES"
+
+      - name: Run preprocessing
+        env:
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: python -m pipeline preprocess --games "$GAMES"
+
+      # Optional: only runs when both repo secrets exist (Settings > Secrets and
+      # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
+      # service-account JSON key). continue-on-error so a Google/API problem
+      # never blocks committing the regenerated data & outputs below.
+      # Creates/updates one tab per account: "GI - <uid>" and "HSR - <account>".
+      - name: Sync to Google Sheets
+        continue-on-error: true
+        env:
+          GSHEET_ID: ${{ secrets.GSHEET_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: |
+          if [ -z "$GSHEET_ID" ] || [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Sheets secrets not set - skipping sync"
+            exit 0
+          fi
+          KEY="$RUNNER_TEMP/gcp_sa.json"
+          trap 'rm -f "$KEY"' EXIT
+          (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
+          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python -m pipeline sync --games "$GAMES"
+
+      - name: Run analytics
+        env:
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: python -m pipeline analytics --games "$GAMES"
+
+      # Renders the whole dashboard headlessly (both game sections) and fails
+      # the step on any exception. Non-blocking: data is still committed below.
+      - name: Smoke-test dashboard
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+          import sys
+          from streamlit.testing.v1 import AppTest
+
+          at = AppTest.from_file("dashboard.py", default_timeout=180).run()
+          errors = [str(e.value).replace("\n", " ")[:300] for e in at.exception]
+          if errors:
+              print("::warning::Dashboard raised an exception: " + errors[0])
+              sys.exit(1)
+          print("Dashboard rendered OK")
+          PY
+
+      - name: Commit regenerated data & outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # data_clean.csv was renamed to data_clean_gi.csv: drop the old file if it is still tracked
+          git rm -q --ignore-unmatch data/data_clean.csv
+          for f in \
+            data/char_full.json data/weapon_full.json data/data_clean_gi.csv \
+            data/hsr_char_full.json data/hsr_lc_full.json data/data_clean_hsr.csv \
+            outputs; do
+            if [ -e "$f" ]; then git add "$f"; fi
+          done
+          git diff --cached --quiet || git commit -m "chore: auto-update pipeline outputs [skip ci]"
+
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done
+
+      - name: Build report
+        run: |
+          SHA=$(git rev-parse HEAD)
+          RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
+          BLOB="https://github.com/${{ github.repository }}/blob/${SHA}"
+          # raw.githubusercontent.com images do not load for private repositories: link to the file instead
+          PRIVATE="${{ github.event.repository.private }}"
+          {
+            echo "## 📊 Gacha Analytics Report"
+            echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${{ steps.detect.outputs.games }}"
+            echo
+
+            # outputs/gi/ and outputs/hsr/ (one folder per game)
+            find outputs -type f -name '*.csv' 2>/dev/null | sort | while IFS= read -r csv; do
+              echo "### ${csv#outputs/}"
+              echo '```'
+              head -n 15 "$csv" | column -s, -t
+              echo '```'
+              echo
+            done
+
+            find outputs -type f -name '*.png' 2>/dev/null | sort | while IFS= read -r png; do
+              echo "### ${png#outputs/}"
+              if [ "$PRIVATE" = "false" ]; then
+                echo "![${png#outputs/}](${RAW}/${png})"
+              else
+                echo "[${png#outputs/}](${BLOB}/${png})"
+              fi
+              echo
+            done
+          } > report.md
+
+          # GitHub comment body limit is 65,536 chars
+          head -c 60000 report.md > report_trimmed.md
+
+      - name: Post report as commit comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/commits/$(git rev-parse HEAD)/comments" \
+            -F body=@report_trimmed.md
