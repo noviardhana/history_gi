@@ -1,60 +1,30 @@
-# ============================================================
-# Secrets (never commit)
-# ============================================================
+# Secrets
 credentials/
-secret.toml
-secrets.toml
-.env
-.env.*
+secret*.toml
+.env*
 !.env.example
 service_account*.json
-# Default key file name from Google Cloud: <project-id>-<hash>.json
+# Google Cloud default key name
 haha-498910-*.json
 
-# ============================================================
 # Python
-# ============================================================
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 env/
-*.egg-info/
-build/
-dist/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+.*_cache/
 .ipynb_checkpoints/
 
-# ============================================================
-# Generated locally (not part of the repo)
-# ============================================================
-# half-written files, e.g. data/*.json.tmp from the lookup fetch
+# Generated locally
+# (*.tmp = half-written lookup files; report*.md = CI report built on the runner)
 *.tmp
 *.log
-# CI report, only built on the runner
-report.md
-report_trimmed.md
+report*.md
 
-# ============================================================
-# OS / Editor
-# ============================================================
+# OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 *.swp
-
-# ============================================================
-# Keep these TRACKED (do not add them above)
-# ============================================================
-# data/                  CI triggers on data/paimon-moe-local-data.json and
-#                        data/starrailstation-backup_*.dat, and commits the
-#                        lookup JSON + data_clean_gi.csv / data_clean_hsr.csv back to main
-# outputs/               gi/ and hsr/, committed back by CI
-# pipeline/              all scripts except the dashboard
-# .streamlit/config.toml dashboard theme
-# .github/workflows/     CI
-# tests/                pytest suite
-# requirements.txt, requirements-dev.txt, runtime.txt

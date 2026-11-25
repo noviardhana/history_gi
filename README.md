@@ -12,7 +12,7 @@ Analytics, an interactive dashboard and an optional auto-updating Google Sheet b
 ## Features
 
 - **Analytics:** pulls by rarity, monthly timeline, 5★ pity, 50/50 win rate, top items, Luck Score
-- **Dashboard (Streamlit):** game picker, filters (account, banners, date range), KPIs, banner pity meters, nine analysis tabs, CSV export
+- **Dashboard (Streamlit):** game picker, filters (account, banners, date range), KPIs, banner pity meters, analysis tabs (pity, hazard rate, luck, 50/50, items, history), CSV export
 - **Google Sheets (optional):** one tab per account, one table per banner
 - **CI:** GitHub Actions rebuilds data and outputs whenever a new export is pushed
 
@@ -20,8 +20,17 @@ Analytics, an interactive dashboard and an optional auto-updating Google Sheet b
 
 ```
 .
-├── dashboard.py              # Streamlit dashboard
+├── dashboard.py              # Streamlit dashboard (UI and chart assembly)
+├── charts.py                 # reusable Plotly chart helpers
+├── components.py             # reusable HTML/UI helpers (KPI cards, badges)
+├── insights.py               # "what it shows" texts for sections and charts
+├── analytics/                # UI-independent data layer used by the dashboard
+│   ├── __init__.py
+│   ├── data_loader.py        # CSV loading, normalization, integrity checks
+│   ├── filters.py            # account / banner / date filters
+│   └── metrics.py            # current pity, rate-up stats, summary stats
 ├── pipeline/                 # data and analytics scripts
+│   ├── __init__.py
 │   ├── __main__.py           # `python -m pipeline ...`
 │   ├── config.py             # pity rules, banners, colours, paths, timezone
 │   ├── luck.py               # Luck Score formula
@@ -30,13 +39,17 @@ Analytics, an interactive dashboard and an optional auto-updating Google Sheet b
 │   ├── preprocess.py         # raw export -> clean CSV         (--game gi|hsr)
 │   ├── analytics_core.py     # clean CSV -> outputs/           (--game gi|hsr)
 │   └── sync_gsheet.py        # clean CSV -> Google Sheet (optional)
-├── tests/                    # pytest suite + smoke_dashboard.py
+├── tests/                    # pytest suite, fixtures/lzstring_cases.json, smoke_dashboard.py
 ├── data/                     # exports, lookups, clean CSVs
 ├── outputs/                  # generated charts and tables (gi/, hsr/)
+├── credentials/              # secret.toml (git-ignored)
 ├── requirements.txt / requirements-dev.txt
+├── pytest.ini                # test paths and import paths
 ├── runtime.txt               # Python version used by CI
 └── .github/workflows/cml.yml
 ```
+
+`pipeline/` produces the data and the PNG/CSV reports; `analytics/`, `charts.py`, `components.py` and `insights.py` are used only by the dashboard. `pipeline/config.py` is the single source of truth for per-game settings.
 
 Stages run in this order: fetch → preprocess → analytics → sync. Each module handles both games; pick one with `--game gi|hsr` (`python -m pipeline` does this for you).
 
@@ -62,7 +75,7 @@ streamlit run dashboard.py                # http://localhost:8501
 | `python -m pipeline all --dry-run` | print what would run |
 | `python -m pipeline preprocess --games gi` | one stage (`fetch`, `preprocess`, `analytics`, `sync`) and/or one game |
 
-Games are detected from the files in `data/`. Requires Python 3.9+.
+Games are detected from the files in `data/`. CI runs the Python version in `runtime.txt` (3.11).
 
 ## Outputs
 
@@ -80,11 +93,27 @@ Games are detected from the files in `data/`. Requires Python 3.9+.
 | 07 | Luck Score |
 | 08 | Radiance check (Genshin only) |
 
+### Luck Score
+
+Both components use a 0–100 scale where **50 means exactly as expected**, and the score is `0.6 × pity luck + 0.4 × rate-up win luck` (re-weighted if one is missing). The formula lives in `pipeline/luck.py` and is shared by the PNG reports and the dashboard.
+
+- **Pity luck:** per 5★, `50 + 50 × (E − pity) / (E − 1)` limited to 0–100, where `E = 100 / expected_rate_5` of the banner (62.5 for a 1.6% banner). Pull 1 scores 100, pity `E` scores 50. Banners without an `expected_rate_5` entry (Beginners) are not scored.
+- **Rate-up win luck:** 0 with no wins, 50 at the banner's official rate-up chance (50% character, 75% weapon / light cone), 100 with every 50/50 won.
+- **Dashboard labels:** above 70 very lucky · 55–70 above average · 45–55 about average · below 45 below average.
+
+### Banner rules (`pipeline/config.py`)
+
+- `hard_pity` is the official 5★ guarantee. `pull_limit` is the maximum number of pulls a banner allows (Beginners: 20 wishes in Genshin, 50 warps in Star Rail); it is not a pity.
+- Banners in `pity_card_banners` get a pity meter; Beginners banners do not.
+- Current pity, lifetime pulls and hazard-rate exposure use the full history of the selected account(s); only the historical charts follow the date filter.
+- Banner efficiency (dashboard and `06_banner_performance.png`) is the mean pity of the 5★ obtained, so the unfinished streak after the last 5★ is not counted. The dashboard does not rank banners with fewer than 3 5★.
+- Banners with a `pull_limit` show that limit in the pity distribution plots and in the Google Sheet summary (`limit 20 pulls`) instead of a hard-pity line.
+
 Modules accept extra options when run directly, for example `python pipeline/preprocess.py --game gi --uid ... --mask-uid` and `--game hsr --profile ... --input ...`. Timestamps are written in `DEFAULT_TZ` (`pipeline/config.py`, default `Asia/Jakarta`).
 
 ## Automation (GitHub Actions)
 
-`.github/workflows/cml.yml` runs when an export, `pipeline/`, `tests/`, `dashboard.py`, `requirements*.txt` or the workflow file is pushed to `main`, or manually from the **Actions** tab.
+`.github/workflows/cml.yml` runs when an export, `pipeline/`, `analytics/`, `tests/`, `dashboard.py`, `charts.py`, `components.py`, `insights.py`, `requirements*.txt`, `pytest.ini`, `runtime.txt` or the workflow file is pushed to `main`, or manually from the **Actions** tab.
 
 1. Install dependencies and run the tests (a failure stops the run before any data changes)
 2. `python -m pipeline all --no-sync`: detect exports, fetch lookups, preprocess, analytics
@@ -138,7 +167,7 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Covers the Star Rail backup decoder, Luck Score, lookup parsing and validation, Genshin preprocessing, game configs and the pipeline runner.
+Covers the Star Rail backup decoder (against `tests/fixtures/lzstring_cases.json`), Star Rail and Genshin preprocessing, Luck Score, Radiance model, lookup parsing and validation, UID masking and Google Sheets tab matching, game configs and the pipeline runner. `tests/smoke_dashboard.py` is not collected by pytest; CI runs it as a separate step.
 
 ## Security & Privacy
 
@@ -153,7 +182,7 @@ Covers the Star Rail backup decoder, Luck Score, lookup parsing and validation, 
 | "No export found" | Put an export in `data/` or pass `--games gi` / `--games hsr` |
 | `FileNotFoundError` for lookup | Run `python -m pipeline fetch` first |
 | Rows without rarity / name mapping | New item: re-run `python -m pipeline fetch`, then `preprocess` |
-| `ModuleNotFoundError: pipeline` | Run `streamlit run dashboard.py` from the project root |
+| `ModuleNotFoundError: pipeline` / `analytics` | Run `streamlit run dashboard.py` from the project root |
 | `git push` rejected | `git pull --rebase origin main`, then push |
 | `403` / `SpreadsheetNotFound` | Share the Sheet with `client_email` as Editor and enable the Sheets API |
 | Streamlit Cloud "file not found" | Set the app's main file to `dashboard.py` |

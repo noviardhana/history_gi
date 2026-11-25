@@ -145,11 +145,13 @@ def banner_table(cfg: GameConfig, acc_df: pd.DataFrame, banner: str, include_3st
     b["no"] = np.arange(1, len(b) + 1)
     hard5 = cfg.hard_pity.get(banner, cfg.default_hard_pity)
     hard4 = cfg.hard_pity_4
+    limit = (getattr(cfg, "pull_limit", None) or {}).get(banner)   # Beginners: pull limit, not a pity
 
     p5, p4 = current_pity(b, 5), current_pity(b, 4)
     summary = (
         f"Pulls {len(b):,} · 5★ {int((b['rarity'] == 5).sum())} · 4★ {int((b['rarity'] == 4).sum())}"
         f" · Pity 5★ {p5 if p5 is not None else '-'}/{hard5} · 4★ {p4 if p4 is not None else '-'}/{hard4}"
+        + (f" · limit {limit} pulls" if limit else "")
     )
 
     shown = b if include_3star else b[b["rarity"] >= 4]

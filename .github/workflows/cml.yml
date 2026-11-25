@@ -1,4 +1,4 @@
-name: Gacha Pipeline
+name: History of Wish Pipeline
 
 on:
   push:
@@ -7,8 +7,13 @@ on:
       - 'data/paimon-moe-local-data.json'
       - 'data/starrailstation-backup_*.dat'
       - 'pipeline/**'
+      - 'analytics/**'
       - 'tests/**'
+      - 'pytest.ini'
       - 'dashboard.py'
+      - 'charts.py'
+      - 'components.py'
+      - 'insights.py'
       - 'requirements*.txt'
       - 'runtime.txt'
       - '.github/workflows/cml.yml'
@@ -41,7 +46,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      # Unit tests first: a broken decoder / parser / Luck Score stops the run before any data is touched.
+      # Unit tests first (config: pytest.ini, testpaths = tests): a broken decoder / parser / Luck Score / runner
+      # / UID masking stops the run before any data is touched.
       - name: Run tests
         run: python -m pytest -q
 
@@ -54,7 +60,8 @@ jobs:
         run: python -m pipeline all --no-sync
 
       # Renders the whole dashboard headlessly (both game sections) and fails the step on any
-      # exception (see tests/smoke_dashboard.py). Non-blocking: data is still committed below.
+      # exception (see tests/smoke_dashboard.py). PYTHONPATH = repo root so that dashboard.py can import
+      # analytics/, pipeline/, charts.py, components.py and insights.py. Non-blocking: data is still committed below.
       - name: Smoke-test dashboard
         continue-on-error: true
         env:

@@ -17,12 +17,13 @@ Insights (same order as the dashboard storytelling):
     7. Luck Score
     8. Radiance check (Genshin only)
 
-Luck Score (identical for both games; implemented in luck.py):
-    pity_luck  = mean over 5* pulls of (1 - (pity - 1) / (hard_pity - 1)) * 100
-    win_luck   = 50 * actual 5* rate-up win rate / expected win rate, where the
-                 expected rate is the official rate-up chance of the banner of
-                 each pull (e.g. Character 50%, Weapon/Light Cone 75%)
-                 -> exactly as expected scores 50, always better than expected > 50
+Luck Score (identical for both games; implemented in luck.py, 50 = exactly as expected):
+    pity_luck  = clip(50 + 50 * (E - pity) / (E - 1), 0, 100), averaged over 5* pulls,
+                 E = 100 / consolidated 5* rate of the banner (expected_rate_5 in config.py);
+                 banners without an expected rate (Beginners) are not scored
+    win_luck   = 0 with no wins, 50 at the expected rate-up win rate, 100 with all wins;
+                 the expected rate is the official rate-up chance of the banner of each pull
+                 (e.g. Character 50%, Weapon/Light Cone 75%)
     luck_score = 0.6 * pity_luck + 0.4 * win_luck   (re-weighted if one is missing)
 """
 
@@ -334,11 +335,14 @@ def insight_pity_distribution(df, outdir, ctx):
     for ax, banner in zip(flat, banners):
         vals = five.loc[five["banner_type"] == banner, "pity"].dropna()
         hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
-        upper = max(hard, int(vals.max())) + 5
+        limit = (getattr(cfg, "pull_limit", None) or {}).get(banner)
+        reach = min(hard, limit) if limit else hard   # Beginners: the pull limit, not the 5* hard pity
+        upper = max(reach, int(vals.max())) + 5
         color = cfg.banner_colors.get(banner, "#999999")
         ax.hist(vals, bins=range(0, upper, 5), color=color, edgecolor="white", linewidth=0.8)
         ax.axvline(vals.mean(), color=INK, linestyle="--", linewidth=1.3, label=f"mean {vals.mean():.1f}")
-        ax.axvline(hard, color=MUTED, linestyle=":", linewidth=1.3, label=f"hard pity {hard}")
+        if hard <= reach:
+            ax.axvline(hard, color=MUTED, linestyle=":", linewidth=1.3, label=f"hard pity {hard}")
         ax.set_xlim(0, upper)
         ax.set_title(f"{banner}  (n={len(vals)})")
         ax.set_xlabel("Pity at 5\u2605")
@@ -497,7 +501,13 @@ def insight_banner_performance(df, outdir, ctx):
         .agg(total_pull=("item_id", "count"), pull_5star=("is_5star", "sum"), pull_4star=("is_4star", "sum"))
         .reset_index()
     )
-    perf["pull_per_5star"] = (perf["total_pull"] / perf["pull_5star"].replace(0, float("nan"))).round(1)
+    perf["raw_pulls_per_5star"] = (perf["total_pull"] / perf["pull_5star"].replace(0, float("nan"))).round(1)
+    # Efficiency = mean pity of the 5* obtained: unlike total pulls / 5* it leaves out the unfinished streak
+    # after the last 5*, so it is not biased upward.
+    pity5 = df[df["is_5star"]].groupby("banner_type")["pity"].mean().round(1).rename("pull_per_5star")
+    perf = perf.merge(pity5, on="banner_type", how="left")
+    rates = getattr(cfg, "expected_rate_5", None) or {}
+    perf["expected_pull_per_5star"] = [round(100 / rates[b], 1) if rates.get(b) else float("nan") for b in perf["banner_type"]]
     perf["rate_5star_pct"] = (perf["pull_5star"] / perf["total_pull"] * 100).round(2)
 
     dec = df[df["win_50_50"].isin(["Win", "Lose"]) & (df["rarity"] == 5)]
@@ -531,14 +541,18 @@ def insight_banner_performance(df, outdir, ctx):
     ax = axes[1]
     vals = perf["pull_per_5star"]
     bars = ax.barh(y, vals.fillna(0), 0.62, color=colors)
-    for yi, v in zip(y, vals):
+    for yi, v, n5, exp in zip(y, vals, perf["pull_5star"], perf["expected_pull_per_5star"]):
         if pd.isna(v):
             ax.text(1, yi, "N/A", va="center", fontsize=8.5, color=MUTED)
         else:
-            ax.annotate(f"{v:.1f}", (v, yi), xytext=(4, 0), textcoords="offset points", va="center", fontsize=8.5)
-    vmax = vals.max()  # NaN when no banner has a 5*; max(nan, 1) would return nan and break set_xlim
-    ax.set_xlim(0, 1 if pd.isna(vmax) else max(vmax * 1.18, 1))
-    ax.set_title(f"{cfg.pull_word}s per 5\u2605  (lower = better)")
+            ax.annotate(f"{v:.1f} (n={int(n5)})", (v, yi), xytext=(4, 0), textcoords="offset points", va="center", fontsize=8.5)
+        if pd.notna(exp):
+            ax.plot([exp, exp], [yi - 0.42, yi + 0.42], color=INK, linewidth=2)
+    vmax = np.nanmax([vals.max(), perf["expected_pull_per_5star"].max()])  # NaN when no banner has a 5* or a rate
+    ax.set_xlim(0, 1 if pd.isna(vmax) else max(vmax * 1.3, 1))
+    ax.set_title("Avg pity per 5\u2605  (lower = better)")
+    ax.legend(handles=[Line2D([0], [0], color=INK, linewidth=2, label="Expected (1 \u00f7 consolidated rate)")],
+              loc="lower right", fontsize=8, frameon=False)
     vgrid(ax)
 
     ax = axes[2]

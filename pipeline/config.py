@@ -68,6 +68,8 @@ class GameConfig:
     # per banner, consolidated 5* rate per pull in % (pity included). Used by the dashboard's "Actual vs Expected"
     # and "Rolling Efficiency". A banner without an entry (e.g. Beginners) is left out of those two charts.
     expected_rate_5: dict = field(default_factory=dict)
+    # per banner, maximum number of pulls the banner allows (NOT a pity): Beginners banners are capped.
+    pull_limit: dict = field(default_factory=dict)
     pity_card_banners: list = field(default_factory=list) # banners shown as pity meters
     summary_banners: list = field(default_factory=list)   # [(banner, short label)] for the written summary
     currency: str = "Primogems"
@@ -94,7 +96,8 @@ GI = GameConfig(
         "Character Event": 90,
         "Standard": 90,
         "Weapon Event": 80,   # agreed reference value (was 77 in the old analytics script)
-        "Beginners": 20,
+        # Beginners' Wish has the standard 5* pity rules (90). 20 is its wish limit, see pull_limit below.
+        "Beginners": 90,
     },
     rateup_chance={
         "Character Event": 50,
@@ -104,6 +107,7 @@ GI = GameConfig(
     gear_label="Weapon",
     soft_pity={"Character Event": 74, "Standard": 74, "Weapon Event": 63},
     expected_rate_5={"Character Event": 1.6, "Weapon Event": 1.85, "Standard": 1.6},
+    pull_limit={"Beginners": 20},
     pity_card_banners=["Character Event", "Weapon Event", "Standard", "Beginners"],
     summary_banners=[("Character Event", "Character"), ("Weapon Event", "Weapon")],
     currency="Primogems",
@@ -170,6 +174,7 @@ HSR = GameConfig(
         "Collab Light Cone Event": 1.87,
         "Standard": 1.6,
     },
+    pull_limit={"Beginners": 50},
     pity_card_banners=[
         "Character Event",
         "Light Cone Event",
