@@ -1,0 +1,7 @@
+account,model,rolls,wins,actual_pct,expected_model_pct,z,impossible_losses,rolls_at_k0,rolls_at_k1,rolls_at_k2,rolls_at_k3,actual_minus_flat50_pp,lose_not_followed_by_guaranteed
+main,reset,22,13,59.1,53.4,0.54,0,14,5,3,0,9.1,0
+main,decrement,22,13,59.1,54.5,0.44,0,10,8,4,0,9.1,0
+account2,reset,1,0,0.0,50.0,-1.0,0,1,0,0,0,-50.0,0
+account2,decrement,1,0,0.0,50.0,-1.0,0,1,0,0,0,-50.0,0
+account3,reset,1,0,0.0,50.0,-1.0,0,1,0,0,0,-50.0,0
+account3,decrement,1,0,0.0,50.0,-1.0,0,1,0,0,0,-50.0,0
