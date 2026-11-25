@@ -2,7 +2,8 @@
 config.py
 =========
 Single source of truth for per-game settings AND project paths. Imported by:
-    - pipeline/01_fetch_*_lookup.py, 02_preprocess_*.py     (paths)
+    - pipeline/01_fetch_*_lookup.py, 02_preprocess_*.py     (paths, CLEAN_CSV)
+    - pipeline/run_all.py                                   (one-command runner)
     - pipeline/03_analytics_gi.py / 03_analytics_hsr.py     (charts + Luck Score)
     - pipeline/04_sync_gsheet.py                            (Google Sheets)
     - dashboard.py (project root)                           (Streamlit dashboard)
@@ -11,7 +12,7 @@ Pure standard library on purpose (no pandas / matplotlib), so lightweight
 scripts such as the Google Sheets sync can import it without extra packages.
 
 Project paths (relative to the project root, one level above pipeline/):
-    data/          raw exports, lookup JSON, data_clean*.csv
+    data/          raw exports, lookup JSON, data_clean_gi*.csv / data_clean_hsr*.csv
     outputs/       gi/ and hsr/  (analytics CSV + PNG)
     credentials/   secret.toml (git-ignored)
 
@@ -28,7 +29,35 @@ DATA_DIR = ROOT_DIR / "data"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 CREDENTIALS_DIR = ROOT_DIR / "credentials"
 
-# Timezone of the `datetime` column in every data_clean*.csv, so both games are comparable.
+# Default output of the 02_preprocess scripts = input of 03_analytics / 04_sync / dashboard.
+# Change a file name HERE only; every script reads it from this table.
+CLEAN_CSV = {
+    "GI": DATA_DIR / "data_clean_gi.csv",
+    "HSR": DATA_DIR / "data_clean_hsr.csv",
+}
+# Name used before the rename (Genshin only). Readers fall back to it so an old checkout keeps working
+# until 02_preprocess_gi.py has been run once; writers never use it.
+LEGACY_CLEAN_CSV = {
+    "GI": DATA_DIR / "data_clean.csv",
+}
+
+
+def resolve_clean_csv(key: str) -> Path:
+    """Path a READER should open: the current name, else the legacy name if only that exists."""
+    current = CLEAN_CSV[key]
+    legacy = LEGACY_CLEAN_CSV.get(key)
+    if not current.exists() and legacy is not None and legacy.exists():
+        print(f"[INFO] {legacy.name} is the old file name; using it. Run the 02_preprocess script once to create {current.name}.")
+        return legacy
+    return current
+
+
+def clean_csv_variant(key: str, suffix: str) -> Path:
+    """data_clean_gi.csv + 'uid' -> data_clean_gi_<uid>.csv (single-account outputs)."""
+    base = CLEAN_CSV[key]
+    return base.with_name(f"{base.stem}_{suffix}{base.suffix}")
+
+# Timezone of the `datetime` column in every data_clean_*.csv, so both games are comparable.
 DEFAULT_TZ = "Asia/Jakarta"
 
 

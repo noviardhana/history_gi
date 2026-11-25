@@ -3,7 +3,7 @@
 =================
 Sync the wish / warp history of both games to one Google Sheet:
 
-    Genshin Impact    data/data_clean.csv      (02_preprocess_gi.py)
+    Genshin Impact    data/data_clean_gi.csv   (02_preprocess_gi.py)
     Honkai: Star Rail data/data_clean_hsr.csv  (02_preprocess_hsr.py)
 
 Layout
@@ -63,7 +63,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config import CREDENTIALS_DIR, DATA_DIR, GAMES, GameConfig
+from config import CLEAN_CSV, CREDENTIALS_DIR, GAMES, GameConfig, resolve_clean_csv
 
 try:  # Python 3.11+
     import tomllib
@@ -71,7 +71,7 @@ except ModuleNotFoundError:  # older Python: pip install tomli
     tomllib = None
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_CSV = {"GI": DATA_DIR / "data_clean.csv", "HSR": DATA_DIR / "data_clean_hsr.csv"}
+DEFAULT_CSV = {key: resolve_clean_csv(key) for key in CLEAN_CSV}
 PREPROCESS_SCRIPT = {"GI": "02_preprocess_gi.py", "HSR": "02_preprocess_hsr.py"}
 DEFAULT_SECRETS = CREDENTIALS_DIR / "secret.toml"
 DEFAULT_CREDS = CREDENTIALS_DIR / "service_account.json"
@@ -435,7 +435,7 @@ def check_service_account(info: dict):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Sync Genshin Impact and Honkai: Star Rail pull history to Google Sheets.")
-    p.add_argument("--csv", "--gi-csv", dest="gi_csv", default=str(DEFAULT_CSV["GI"]), help="Genshin data_clean.csv")
+    p.add_argument("--csv", "--gi-csv", dest="gi_csv", default=str(DEFAULT_CSV["GI"]), help="Genshin data_clean_gi.csv")
     p.add_argument("--hsr-csv", default=str(DEFAULT_CSV["HSR"]), help="Honkai: Star Rail data_clean_hsr.csv")
     p.add_argument("--games", default="gi,hsr", help="Comma-separated games to sync: gi, hsr (default: both)")
     p.add_argument("--gi-tab-name", choices=["uid", "account"], default="uid",
