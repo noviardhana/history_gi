@@ -6,6 +6,11 @@ on:
     paths:
       - 'data/paimon-moe-local-data.json'
       - 'data/starrailstation-backup_*.dat'
+      - 'pipeline/**'
+      - 'tests/**'
+      - 'dashboard.py'
+      - 'requirements*.txt'
+      - 'runtime.txt'
       - '.github/workflows/cml.yml'
   workflow_dispatch: {}
 
@@ -40,90 +45,23 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
-      # Each game runs only if its export is in the repo. At least one is required.
-      #   Genshin Impact : data/paimon-moe-local-data.json
+      # fetch lookups -> preprocess -> analytics, for every game whose export is in data/
+      #   Genshin Impact   : data/paimon-moe-local-data.json
       #   Honkai: Star Rail: data/starrailstation-backup_YYYY-MM-DD.dat
-      - name: Detect game exports
-        id: detect
-        run: |
-          gi=false
-          hsr=false
-          if [ -f "data/paimon-moe-local-data.json" ]; then gi=true; fi
-          if ls data/starrailstation-backup_*.dat > /dev/null 2>&1; then hsr=true; fi
+      # The runner detects the games itself and fails with "No export found" if there is none.
+      # A rejected lookup download keeps the existing file. Google Sheets sync is a separate step below.
+      - name: Run pipeline
+        run: python -m pipeline all --no-sync
 
-          if [ "$gi" = false ] && [ "$hsr" = false ]; then
-            echo "::error::No export found. Add data/paimon-moe-local-data.json (Genshin Impact) and/or data/starrailstation-backup_YYYY-MM-DD.dat (Honkai: Star Rail)."
-            exit 1
-          fi
-
-          games=""
-          if [ "$gi" = true ]; then games="gi"; fi
-          if [ "$hsr" = true ]; then games="${games:+$games,}hsr"; fi
-
-          {
-            echo "gi=$gi"
-            echo "hsr=$hsr"
-            echo "games=$games"
-          } >> "$GITHUB_OUTPUT"
-          echo "Games to process: $games"
-
-      # `python -m pipeline <stage>` runs the matching script of every detected game
-      # (pipeline/__main__.py). A rejected lookup download keeps the existing file.
-      - name: Fetch lookups
-        env:
-          GAMES: ${{ steps.detect.outputs.games }}
-        run: python -m pipeline fetch --games "$GAMES"
-
-      - name: Run preprocessing
-        env:
-          GAMES: ${{ steps.detect.outputs.games }}
-        run: python -m pipeline preprocess --games "$GAMES"
-
-      # Optional: only runs when both repo secrets exist (Settings > Secrets and
-      # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
-      # service-account JSON key). continue-on-error so a Google/API problem
-      # never blocks committing the regenerated data & outputs below.
-      # Creates/updates one tab per account: "GI - <uid>" and "HSR - <account>".
-      - name: Sync to Google Sheets
-        continue-on-error: true
-        env:
-          GSHEET_ID: ${{ secrets.GSHEET_ID }}
-          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-          GAMES: ${{ steps.detect.outputs.games }}
-        run: |
-          if [ -z "$GSHEET_ID" ] || [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::notice::Google Sheets secrets not set - skipping sync"
-            exit 0
-          fi
-          KEY="$RUNNER_TEMP/gcp_sa.json"
-          trap 'rm -f "$KEY"' EXIT
-          (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
-          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python -m pipeline sync --games "$GAMES"
-
-      - name: Run analytics
-        env:
-          GAMES: ${{ steps.detect.outputs.games }}
-        run: python -m pipeline analytics --games "$GAMES"
-
-      # Renders the whole dashboard headlessly (both game sections) and fails
-      # the step on any exception. Non-blocking: data is still committed below.
+      # Renders the whole dashboard headlessly (both game sections) and fails the step on any
+      # exception (see tests/smoke_dashboard.py). Non-blocking: data is still committed below.
       - name: Smoke-test dashboard
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python - <<'PY'
-          import sys
-          from streamlit.testing.v1 import AppTest
+        run: python tests/smoke_dashboard.py
 
-          at = AppTest.from_file("dashboard.py", default_timeout=180).run()
-          errors = [str(e.value).replace("\n", " ")[:300] for e in at.exception]
-          if errors:
-              print("::warning::Dashboard raised an exception: " + errors[0])
-              sys.exit(1)
-          print("Dashboard rendered OK")
-          PY
-
+      # Fails the run if the push does not succeed, so a missing update never looks green.
       - name: Commit regenerated data & outputs
         run: |
           git config user.name "github-actions[bot]"
@@ -139,21 +77,48 @@ jobs:
           git diff --cached --quiet || git commit -m "chore: auto-update pipeline outputs [skip ci]"
 
           for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
+            if git pull --rebase origin main && git push; then
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
             echo "Push attempt $i failed, retrying..."
             sleep 5
           done
+          echo "::error::Could not push the regenerated data after 3 attempts"
+          exit 1
 
-      - name: Build report
+      # Optional: only runs when both repo secrets exist (Settings > Secrets and
+      # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
+      # service-account JSON key, read straight from the environment, no key file).
+      # Runs after the commit and continue-on-error, so a Google/API problem never delays or
+      # blocks the data update. Creates/updates one tab per account: "GI - <uid>" and "HSR - <account>".
+      # `pipeline all` would also work, but the data is already committed, so only sync runs here.
+      - name: Sync to Google Sheets
+        continue-on-error: true
+        env:
+          GSHEET_ID: ${{ secrets.GSHEET_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GSHEET_ID" ] || [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Sheets secrets not set - skipping sync"
+            exit 0
+          fi
+          python -m pipeline sync
+
+      - name: Build and post report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=$(git rev-parse HEAD)
           RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
           BLOB="https://github.com/${{ github.repository }}/blob/${SHA}"
           # raw.githubusercontent.com images do not load for private repositories: link to the file instead
           PRIVATE="${{ github.event.repository.private }}"
+          # games = the folders under outputs/ (gi, hsr)
+          GAMES=$(find outputs -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort | paste -sd, -)
           {
             echo "## 📊 Gacha Analytics Report"
-            echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${{ steps.detect.outputs.games }}"
+            echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${GAMES:-none}"
             echo
 
             # outputs/gi/ and outputs/hsr/ (one folder per game)
@@ -179,9 +144,4 @@ jobs:
           # GitHub comment body limit is 65,536 chars
           head -c 60000 report.md > report_trimmed.md
 
-      - name: Post report as commit comment
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api "repos/${{ github.repository }}/commits/$(git rev-parse HEAD)/comments" \
-            -F body=@report_trimmed.md
+          gh api "repos/${{ github.repository }}/commits/${SHA}/comments" -F body=@report_trimmed.md

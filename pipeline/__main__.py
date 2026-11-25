@@ -9,29 +9,31 @@ python -m pipeline  --  run the whole pipeline (or one stage) with one command.
 Games: by default every game whose export exists in data/ (paimon-moe-local-data.json for
 Genshin, starrailstation-backup_*.dat for Star Rail). Use --games gi / hsr / gi,hsr to choose.
 Sync runs only if Google credentials are available (credentials/secret.toml, or the env
-variables GSHEET_ID + GOOGLE_APPLICATION_CREDENTIALS), unless --sync / --no-sync is given.
+variables GSHEET_ID + GOOGLE_APPLICATION_CREDENTIALS / GCP_SERVICE_ACCOUNT_JSON), unless
+--sync / --no-sync is given.
 A failing step stops the run; the Sheet sync is the only step that reports its failure at the end.
 
-The numbered scripts are started as separate processes (their names start with a digit, so
-they can not be imported); extra options for one script are still available by calling it directly.
+Every stage is a module of this package (fetch_lookup, preprocess, analytics_core,
+sync_gsheet) and is called in the same process. Extra options for one stage are still
+available by running that module directly, e.g. `python pipeline/preprocess.py --game gi --uid ...`.
 """
 
 import argparse
+import importlib
 import os
-import subprocess
 import sys
 
-try:  # python -m pipeline
+if __package__:  # python -m pipeline
     from .config import CREDENTIALS_DIR, DATA_DIR, ROOT_DIR
-except ImportError:  # python pipeline/__main__.py
+else:  # python pipeline/__main__.py
     from config import CREDENTIALS_DIR, DATA_DIR, ROOT_DIR
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-
-SCRIPTS = {
-    "fetch": {"gi": "01_fetch_gi_lookup.py", "hsr": "01_fetch_hsr_lookup.py"},
-    "preprocess": {"gi": "02_preprocess_gi.py", "hsr": "02_preprocess_hsr.py"},
-    "analytics": {"gi": "03_analytics_gi.py", "hsr": "03_analytics_hsr.py"},
+# stage -> module that provides main(argv) -> int
+STAGE_MODULE = {
+    "fetch": "fetch_lookup",
+    "preprocess": "preprocess",
+    "analytics": "analytics_core",
+    "sync": "sync_gsheet",
 }
 STAGES_ALL = ["fetch", "preprocess", "analytics", "sync"]
 
@@ -48,14 +50,32 @@ def detect_games() -> list:
 def has_sync_credentials() -> bool:
     if (CREDENTIALS_DIR / "secret.toml").exists():
         return True
-    return bool(os.environ.get("GSHEET_ID") and os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+    has_sheet = bool(os.environ.get("GSHEET_ID"))
+    has_key = bool(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.environ.get("GCP_SERVICE_ACCOUNT_JSON"))
+    return has_sheet and has_key
 
 
-def build_commands(stage: str, games: list) -> list:
-    py = sys.executable
+def build_calls(stage: str, games: list) -> list:
+    """[(shown command, module argv)] for one stage."""
     if stage == "sync":
-        return [[py, os.path.join(HERE, "04_sync_gsheet.py"), "--games", ",".join(games)]]
-    return [[py, os.path.join(HERE, SCRIPTS[stage][g])] for g in games]
+        return [(f"python -m pipeline sync --games {','.join(games)}", ["--games", ",".join(games)])]
+    return [(f"python -m pipeline {stage} --game {g}", ["--game", g]) for g in games]
+
+
+def run_stage(stage: str, argv: list) -> int:
+    module = STAGE_MODULE[stage]
+    mod = importlib.import_module(f"{__package__}.{module}" if __package__ else module)
+    try:
+        code = mod.main(argv)
+    except SystemExit as exc:  # sys.exit("message") inside a stage
+        if isinstance(exc.code, str):
+            print(exc.code, file=sys.stderr)
+            return 1
+        return exc.code or 0
+    except Exception as exc:  # noqa: BLE001 - report like a failed step, not a traceback
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    return code or 0
 
 
 def main(argv=None) -> int:
@@ -86,12 +106,11 @@ def main(argv=None) -> int:
             if args.no_sync or (args.stage == "all" and not args.sync and not has_sync_credentials()):
                 print("\n[skip] sync: " + ("--no-sync given" if args.no_sync else "no Google credentials found"))
                 continue
-        for cmd in build_commands(stage, games):
-            shown = " ".join(["python"] + [os.path.relpath(c, ROOT_DIR) if os.path.isabs(c) else c for c in cmd[1:]])
+        for shown, call_argv in build_calls(stage, games):
             print(f"\n$ {shown}")
             if args.dry_run:
                 continue
-            code = subprocess.run(cmd, cwd=ROOT_DIR).returncode
+            code = run_stage(stage, call_argv)
             if code != 0:
                 if stage == "sync":
                     sync_failed = True

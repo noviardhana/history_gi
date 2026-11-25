@@ -54,7 +54,7 @@ DEFAULT_DATA = {
     "GI": _first_existing(BASE_DIR / "data_clean_gi.csv", BASE_DIR / "data_clean.csv", default_clean_csv("GI")),
     "HSR": _first_existing(BASE_DIR / "data_clean_hsr.csv", HSR_CLEAN),
 }
-PREPROCESS_HINT = {"GI": "pipeline/02_preprocess_gi.py", "HSR": "pipeline/02_preprocess_hsr.py"}
+PREPROCESS_HINT = {"GI": "python -m pipeline preprocess --games gi", "HSR": "python -m pipeline preprocess --games hsr"}
 
 # ----------------------------------------------------------------------------
 # Design tokens — dark navy theme matching .streamlit/config.toml

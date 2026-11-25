@@ -1,8 +1,8 @@
 """
 analytics_core.py
 =================
-Shared analytics engine used by 03_analytics_gi.py (Genshin Impact) and
-03_analytics_hsr.py (Honkai: Star Rail).
+Analytics engine for Genshin Impact and Honkai: Star Rail (merged from the former
+03_analytics_gi.py, 03_analytics_hsr.py and 03_radiance_check_gi.py).
 
 Both games run through exactly the same code, so the chart style and the
 Luck Score formula are identical. Only the GameConfig differs.
@@ -15,6 +15,7 @@ Insights (same order as the dashboard storytelling):
     5. Top Character & Top Weapon / Light Cone
     6. Banner Performance
     7. Luck Score
+    8. Radiance check (Genshin only)
 
 Luck Score (identical for both games; implemented in luck.py):
     pity_luck  = mean over 5* pulls of (1 - (pity - 1) / (hard_pity - 1)) * 100
@@ -40,11 +41,11 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-try:  # imported as part of the package (dashboard.py) ...
-    from .config import GameConfig
+if __package__:  # imported as part of the package (dashboard.py, python -m pipeline) ...
+    from .config import GAMES, OUTPUT_DIR, GameConfig, default_clean_csv
     from .luck import compute_luck
-except ImportError:  # ... or run as a script from pipeline/
-    from config import GameConfig
+else:  # ... or run as a script from pipeline/
+    from config import GAMES, OUTPUT_DIR, GameConfig, default_clean_csv
     from luck import compute_luck
 
 # ---------------------------------------------------------------------------
@@ -174,8 +175,9 @@ def label_v(ax, bars, values, fmt="{:,.0f}", pad=3):
                     fontsize=8.5, color=INK)
 
 
-def row_label(banner: str, rarity: int) -> str:
-    return f"{banner}  \u00b7  {rarity}\u2605"
+def row_label(banner: str, rarity) -> str:
+    # int(): rarity is 5.0 (float) when the CSV has rows without a rarity mapping
+    return f"{banner}  \u00b7  {int(rarity)}\u2605"
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +316,9 @@ def insight_pity_distribution(df, outdir, ctx):
     detail = five[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]].sort_values("datetime")
     save_csv(detail, outdir / "03_pity_distribution_5star.csv")
 
-    banners = [b for b in cfg.banner_order if b in five["banner_type"].unique()]
+    # only banners that have at least one 5* with a pity value (int(NaN) / hist of nothing would fail)
+    with_pity = five.loc[five["pity"].notna(), "banner_type"].unique()
+    banners = [b for b in cfg.banner_order if b in with_pity]
     if not banners:
         print("  [skip] No 5-star pulls found, skipping pity distribution chart.")
         save_csv(pd.DataFrame(columns=["banner_type", "count", "mean", "median", "min", "max", "std"]),
@@ -532,7 +536,8 @@ def insight_banner_performance(df, outdir, ctx):
             ax.text(1, yi, "N/A", va="center", fontsize=8.5, color=MUTED)
         else:
             ax.annotate(f"{v:.1f}", (v, yi), xytext=(4, 0), textcoords="offset points", va="center", fontsize=8.5)
-    ax.set_xlim(0, max(vals.max() * 1.18, 1))
+    vmax = vals.max()  # NaN when no banner has a 5*; max(nan, 1) would return nan and break set_xlim
+    ax.set_xlim(0, 1 if pd.isna(vmax) else max(vmax * 1.18, 1))
     ax.set_title(f"{cfg.pull_word}s per 5\u2605  (lower = better)")
     vgrid(ax)
 
@@ -599,9 +604,87 @@ def insight_luck_score(df, outdir, ctx):
 
 
 # ---------------------------------------------------------------------------
-# Entry point shared by both scripts
+# 8. Radiance check (Genshin only; formerly 03_radiance_check_gi.py)
 # ---------------------------------------------------------------------------
-def run_all(df: pd.DataFrame, outdir: Path, cfg: GameConfig):
+# "Capturing Radiance" counter model (community diagram, NOT verified against official sources):
+#   a counter k = 0..3 counts lost 50/50s; chance to get the featured character at the next
+#   non-guaranteed 5*:  k=0: 50%  k=1: 50%  k=2: 75%  k=3: 100%.
+#   A guaranteed pull (rate=2) is not a roll and does not change the counter.
+#   "Win" in the data = featured character (Radiance can't be told apart from a normal win).
+# Two variants of what a win does to the counter are compared, because sources differ:
+#   reset (win -> 0, long-run win rate 55.17%)  /  decrement (win -> k - 1)
+# Columns: expected_model_pct = sum of per-roll chances / rolls; z = (wins - expected) / sqrt(variance),
+# roughly within +-2 = normal luck; impossible_losses = losses at k=3 (chance 0%): the model
+# contradicts the data (or the counter started elsewhere).
+RADIANCE_P_WIN = [0.50, 0.50, 0.75, 1.00]
+RADIANCE_LAUNCH = "2024-08-28"  # Genshin 5.0 release (Capturing Radiance); check this date
+RADIANCE_MODES = ("reset", "decrement")
+
+
+def _radiance_next(k: int, won: bool, mode: str) -> int:
+    if won:
+        return 0 if mode == "reset" else max(k - 1, 0)
+    return min(k + 1, len(RADIANCE_P_WIN) - 1)
+
+
+def run_radiance_model(wins: list, mode: str) -> dict:
+    k, expected, var, impossible = 0, 0.0, 0.0, 0
+    states = [0] * len(RADIANCE_P_WIN)
+    for won in wins:
+        p = RADIANCE_P_WIN[k]
+        states[k] += 1
+        expected += p
+        var += p * (1 - p)
+        if not won and p == 1.0:
+            impossible += 1
+        k = _radiance_next(k, won, mode)
+    n = len(wins)
+    actual = sum(wins)
+    return {
+        "model": mode, "rolls": n, "wins": actual,
+        "actual_pct": round(100 * actual / n, 1),
+        "expected_model_pct": round(100 * expected / n, 1),
+        "z": round((actual - expected) / math.sqrt(var), 2) if var > 0 else float("nan"),
+        "impossible_losses": impossible,
+        **{f"rolls_at_k{i}": c for i, c in enumerate(states)},
+    }
+
+
+def insight_radiance(df, outdir, ctx, start: str = RADIANCE_LAUNCH):
+    print("\n[8] Radiance check")
+    sub = df[(df["banner_type"] == "Character Event") & (df["rarity"] == 5) & (df["datetime"] >= start)]
+    sub = sub[sub["win_50_50"].isin(["Win", "Lose", "Guaranteed"])]
+    if sub.empty:
+        print(f"  [skip] No Character Event 5* rows with 50/50 data on/after {start}.")
+        return None
+
+    rows = []
+    for acc, g in sub.sort_values(["datetime", "pull_number"]).groupby("account", sort=False):
+        labels = g["win_50_50"].tolist()
+        rolls = [lab == "Win" for lab in labels if lab != "Guaranteed"]
+        if not rolls:
+            continue
+        broken = sum(1 for i, lab in enumerate(labels[:-1]) if lab == "Lose" and labels[i + 1] != "Guaranteed")
+        flat50 = round(100 * sum(rolls) / len(rolls) - 50, 1)
+        for mode in RADIANCE_MODES:
+            rows.append({"account": acc, **run_radiance_model(rolls, mode),
+                         "actual_minus_flat50_pp": flat50, "lose_not_followed_by_guaranteed": broken})
+    out = pd.DataFrame(rows)
+    if out.empty:
+        print("  [skip] Only guaranteed rows, nothing to check.")
+        return None
+    save_csv(out, outdir / "08_radiance_check.csv")
+    pd.set_option("display.width", 200, "display.max_columns", 30)
+    print(out.to_string(index=False))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Entry point (python -m pipeline analytics  /  python pipeline/analytics_core.py --game gi)
+# ---------------------------------------------------------------------------
+def run_all(df: pd.DataFrame, outdir: Path, cfg: GameConfig, radiance_start: str = RADIANCE_LAUNCH):
+    if df.empty:
+        raise ValueError("The clean CSV has no rows.")
     apply_theme()
     ctx = make_context(df, cfg)
     insight_total_pull(df, outdir, ctx)
@@ -611,22 +694,33 @@ def run_all(df: pd.DataFrame, outdir: Path, cfg: GameConfig):
     insight_top_items(df, outdir, ctx)
     insight_banner_performance(df, outdir, ctx)
     insight_luck_score(df, outdir, ctx)
+    if cfg.key == "GI":  # the Radiance counter only exists in Genshin
+        insight_radiance(df, outdir, ctx, radiance_start)
     print(f"\nAll insights saved to: {outdir}")
 
 
-def run_cli(cfg: GameConfig, default_input: Path, default_outdir: Path, preprocess_script: str):
-    parser = argparse.ArgumentParser(description=f"Analytics/EDA for {cfg.title}")
-    parser.add_argument("--input", type=str, default=str(default_input), help="Path to the data_clean CSV file")
-    parser.add_argument("--outdir", type=str, default=None, help=f"Output folder (default: {default_outdir})")
-    args = parser.parse_args()
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Analytics/EDA for Genshin Impact / Honkai: Star Rail")
+    parser.add_argument("--game", required=True, choices=["gi", "hsr"], help="gi or hsr")
+    parser.add_argument("--input", default=None, help="Path to the data_clean CSV (default: the game's data_clean CSV)")
+    parser.add_argument("--outdir", default=None, help="Output folder (default: outputs/<game>)")
+    parser.add_argument("--start", default=RADIANCE_LAUNCH, help=f"[gi] first date of the Radiance check (default {RADIANCE_LAUNCH})")
+    args = parser.parse_args(argv)
 
-    input_path = Path(args.input)
+    cfg = GAMES[args.game.upper()]
+    input_path = Path(args.input) if args.input else default_clean_csv(cfg.key)
     if not input_path.exists():
-        raise FileNotFoundError(f"File not found: {input_path}. Run {preprocess_script} first.")
-    outdir = Path(args.outdir) if args.outdir else default_outdir
+        raise FileNotFoundError(f"File not found: {input_path}. Run first: python -m pipeline preprocess --games {args.game}")
+    outdir = Path(args.outdir) if args.outdir else OUTPUT_DIR / args.game
     outdir.mkdir(parents=True, exist_ok=True)
 
     print(f"Reading: {input_path}")
     df = pd.read_csv(input_path)
     df["datetime"] = pd.to_datetime(df["datetime"])
-    run_all(df, outdir, cfg)
+    run_all(df, outdir, cfg, args.start)
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

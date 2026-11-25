@@ -25,12 +25,12 @@ Analytics, an interactive dashboard and an optional auto-updating Google Sheet b
 │   ├── __main__.py           # `python -m pipeline ...`
 │   ├── config.py             # pity rules, banners, colours, paths, timezone
 │   ├── luck.py               # Luck Score formula
-│   ├── analytics_core.py     # shared chart engine
-│   ├── 01_fetch_*_lookup.py  # item id -> name / rarity
-│   ├── 02_preprocess_*.py    # raw export -> clean CSV
-│   ├── 03_analytics_*.py     # clean CSV -> outputs/
-│   └── 04_sync_gsheet.py     # clean CSV -> Google Sheet (optional)
-├── tests/                    # pytest suite
+│   ├── utils.py              # logging, lookup download/validation, UID masking
+│   ├── fetch_lookup.py       # item id -> name / rarity        (--game gi|hsr)
+│   ├── preprocess.py         # raw export -> clean CSV         (--game gi|hsr)
+│   ├── analytics_core.py     # clean CSV -> outputs/           (--game gi|hsr)
+│   └── sync_gsheet.py        # clean CSV -> Google Sheet (optional)
+├── tests/                    # pytest suite + smoke_dashboard.py
 ├── data/                     # exports, lookups, clean CSVs
 ├── outputs/                  # generated charts and tables (gi/, hsr/)
 ├── requirements.txt / requirements-dev.txt
@@ -38,7 +38,7 @@ Analytics, an interactive dashboard and an optional auto-updating Google Sheet b
 └── .github/workflows/cml.yml
 ```
 
-Scripts are numbered by stage (`01` fetch → `02` preprocess → `03` analytics → `04` sync); `_gi` / `_hsr` marks the game.
+Stages run in this order: fetch → preprocess → analytics → sync. Each module handles both games; pick one with `--game gi|hsr` (`python -m pipeline` does this for you).
 
 ## Quick Start
 
@@ -78,18 +78,19 @@ Games are detected from the files in `data/`. Requires Python 3.9+.
 | 05 | Top characters and weapons / light cones |
 | 06 | Banner performance |
 | 07 | Luck Score |
+| 08 | Radiance check (Genshin only) |
 
-Single scripts accept extra options, for example Genshin `--uid`, `--tz`, `--mask-uid` and Star Rail `--profile`, `--input`, `--tz`. Timestamps are written in `DEFAULT_TZ` (`pipeline/config.py`, default `Asia/Jakarta`).
+Modules accept extra options when run directly, for example `python pipeline/preprocess.py --game gi --uid ... --mask-uid` and `--game hsr --profile ... --input ...`. Timestamps are written in `DEFAULT_TZ` (`pipeline/config.py`, default `Asia/Jakarta`).
 
 ## Automation (GitHub Actions)
 
-`.github/workflows/cml.yml` runs when an export or the workflow file is pushed to `main`, or manually from the **Actions** tab.
+`.github/workflows/cml.yml` runs when an export, `pipeline/`, `tests/`, `dashboard.py`, `requirements*.txt` or the workflow file is pushed to `main`, or manually from the **Actions** tab.
 
 1. Install dependencies and run the tests (a failure stops the run before any data changes)
-2. Detect exports and fetch lookups
-3. Preprocess, sync to Google Sheets (optional), run analytics
-4. Smoke-test the dashboard
-5. Commit `data/` and `outputs/` to `main` (`[skip ci]`) and post a report as a commit comment
+2. `python -m pipeline all --no-sync`: detect exports, fetch lookups, preprocess, analytics
+3. Smoke-test the dashboard (`tests/smoke_dashboard.py`)
+4. Commit `data/` and `outputs/` to `main` (`[skip ci]`); the run fails if the push does not succeed
+5. Sync to Google Sheets (optional, key read from the `GCP_SERVICE_ACCOUNT_JSON` secret) and post a report as a commit comment
 
 Actions are pinned to a commit SHA; update the SHA by hand to upgrade an action.
 
@@ -124,8 +125,8 @@ spreadsheet_id = "<sheet id>"
 ```
 
 ```bash
-python pipeline/04_sync_gsheet.py --preprocess   # raw data -> CSV -> Sheet
-python pipeline/04_sync_gsheet.py --dry-run      # preview, no Google access
+python pipeline/sync_gsheet.py --preprocess   # raw data -> CSV -> Sheet
+python pipeline/sync_gsheet.py --dry-run      # preview, no Google access
 ```
 
 Existing data is never deleted: a tab is replaced only after the new content is fully written, and skipped if the new export has fewer pulls (`--force` overrides).
@@ -150,8 +151,8 @@ Covers the Star Rail backup decoder, Luck Score, lookup parsing and validation, 
 | Issue | Fix |
 |---|---|
 | "No export found" | Put an export in `data/` or pass `--games gi` / `--games hsr` |
-| `FileNotFoundError` for lookup | Run the matching `01_fetch_*` script first |
-| Rows without rarity / name mapping | New item: re-run `01_fetch_*`, then `02_preprocess_*` |
+| `FileNotFoundError` for lookup | Run `python -m pipeline fetch` first |
+| Rows without rarity / name mapping | New item: re-run `python -m pipeline fetch`, then `preprocess` |
 | `ModuleNotFoundError: pipeline` | Run `streamlit run dashboard.py` from the project root |
 | `git push` rejected | `git pull --rebase origin main`, then push |
 | `403` / `SpreadsheetNotFound` | Share the Sheet with `client_email` as Editor and enable the Sheets API |

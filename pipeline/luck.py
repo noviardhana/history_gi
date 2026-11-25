@@ -15,9 +15,9 @@ load matplotlib.
 
 import pandas as pd
 
-try:  # imported as part of the package (dashboard.py) ...
+if __package__:  # imported as part of the package (dashboard.py) ...
     from .config import GameConfig
-except ImportError:  # ... or run as a script from pipeline/
+else:  # ... or run as a script from pipeline/
     from config import GameConfig
 
 PITY_WEIGHT = 0.6

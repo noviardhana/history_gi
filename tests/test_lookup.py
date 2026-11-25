@@ -47,8 +47,9 @@ NO_RARITY = """export const characters = {
 
 
 @pytest.fixture(scope="module")
-def gi(load_script):
-    return load_script("01_fetch_gi_lookup.py")
+def gi():
+    from pipeline import fetch_lookup
+    return fetch_lookup
 
 
 def test_parse_id_first_layout(gi):
@@ -72,9 +73,9 @@ def test_window_fallback_when_format_is_unknown(gi):
 
 # ---- publish_lookup (validation + atomic write) ----------------------------------
 @pytest.fixture(scope="module")
-def utils(load_script):
-    import lookup_utils
-    return lookup_utils
+def utils():
+    from pipeline import utils
+    return utils
 
 
 def good(n=60):

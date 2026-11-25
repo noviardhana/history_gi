@@ -5,8 +5,9 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def gi(load_script):
-    return load_script("02_preprocess_gi.py")
+def gi():
+    from pipeline import preprocess
+    return preprocess
 
 
 def pulls(items, ts="2025-01-01 10:00:00", account="main", banner="Character Event"):
@@ -62,3 +63,25 @@ def test_mask_uids_extends_when_two_masks_would_collide(gi):
     assert masked.nunique() == 2
     assert masked.iloc[0] == masked.iloc[2]
     assert "887284572" not in masked.tolist()
+
+
+def test_derived_columns_keep_rarity_integer_with_missing_values(gi):
+    """A float rarity column would write 5.0 to the CSV and show '5.0*' in chart labels."""
+    df = pd.DataFrame({"datetime": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]), "rarity": [5, None, 4]})
+    out = gi.add_derived_columns(df)
+    assert str(out["rarity"].dtype) == "Int64"
+    assert out["is_5star"].tolist() == [True, False, False]
+    assert "5.0" not in out.to_csv(index=False)
+
+
+def test_empty_export_gives_a_clear_error(gi):
+    with pytest.raises(ValueError, match="No pulls found"):
+        gi.require_rows(pd.DataFrame(), "export.json")
+
+
+def test_unknown_banner_is_reported(gi, caplog, monkeypatch):
+    monkeypatch.setattr(logging.getLogger("gacha"), "propagate", True)
+    raw = {"wish-uid": "1", "wish-counter-chronicled": {"pulls": [{"id": "x"}]}}
+    with caplog.at_level(logging.WARNING, logger="gacha"):
+        gi.warn_unknown_banners(raw, gi.build_account_map(raw))
+    assert "wish-counter-chronicled" in caplog.text

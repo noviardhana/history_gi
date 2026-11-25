@@ -1,10 +1,10 @@
 """
-04_sync_gsheet.py
-=================
+sync_gsheet.py
+==============
 Sync the wish / warp history of both games to one Google Sheet:
 
-    Genshin Impact    data/data_clean_gi.csv   (02_preprocess_gi.py)
-    Honkai: Star Rail data/data_clean_hsr.csv  (02_preprocess_hsr.py)
+    Genshin Impact    data/data_clean_gi.csv   (preprocess.py --game gi)
+    Honkai: Star Rail data/data_clean_hsr.csv  (preprocess.py --game hsr)
 
 Layout
 ------
@@ -29,7 +29,8 @@ Safety (existing data is never deleted)
     already in the sheet (cell D2). A smaller export (e.g. a fresh browser
     with partial history) is skipped with a warning; use --force to override.
   - Old GI tabs from before the prefix change (named after the account) are
-    renamed to the new "GI - ..." name, not duplicated.
+    renamed to the new "GI - ..." name, not duplicated. The same happens when
+    GACHA_MASK_UID is switched on or off ("GI - 887284572" <-> "GI - 88xxxxx72").
   - A tab is never cleared in place: the new content is written to a temporary
     tab ("~new <title>") first and swapped in only when that succeeded. If the
     write fails (quota, network) the existing tab stays exactly as it was.
@@ -37,24 +38,25 @@ Safety (existing data is never deleted)
 Usage
 -----
     pip install pandas gspread
-    python3 pipeline/04_sync_gsheet.py --preprocess   # raw data -> CSV -> Google Sheet
-    python3 pipeline/04_sync_gsheet.py                # CSV -> Google Sheet (both games)
-    python3 pipeline/04_sync_gsheet.py --games hsr    # only one game (gi / hsr)
-    python3 pipeline/04_sync_gsheet.py --dry-run      # no Google access, just a preview
+    python -m pipeline sync                           # CSV -> Google Sheet (both games)
+    python pipeline/sync_gsheet.py --preprocess       # raw data -> CSV -> Google Sheet
+    python pipeline/sync_gsheet.py --games hsr        # only one game (gi / hsr)
+    python pipeline/sync_gsheet.py --dry-run          # no Google access, just a preview
 
 Settings, in order of priority (flag > environment > file):
     credentials/secret.toml   [gsheet] spreadsheet_id  +  [gcp_service_account] (default)
     --sheet-id / GSHEET_ID                       id of the Google Sheet
     --creds    / GOOGLE_APPLICATION_CREDENTIALS  service-account key as a JSON file
+    GCP_SERVICE_ACCOUNT_JSON                     the key's JSON text itself (used by CI)
 
 Keep the service-account key out of version control (add `credentials/`
 to .gitignore) and never share it: anyone with it can edit the sheet.
 """
 
 import argparse
+import json
 import os
 import re
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -63,8 +65,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config import CREDENTIALS_DIR, GAMES, GameConfig, default_clean_csv
-from logsetup import get_logger
+if __package__:
+    from .config import CREDENTIALS_DIR, GAMES, GameConfig, default_clean_csv
+    from .utils import get_logger, same_uid
+else:
+    from config import CREDENTIALS_DIR, GAMES, GameConfig, default_clean_csv
+    from utils import get_logger, same_uid
 
 log = get_logger("sync")
 
@@ -73,9 +79,7 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # older Python: pip install tomli
     tomllib = None
 
-SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CSV = {"GI": default_clean_csv("GI"), "HSR": default_clean_csv("HSR")}
-PREPROCESS_SCRIPT = {"GI": "02_preprocess_gi.py", "HSR": "02_preprocess_hsr.py"}
 DEFAULT_SECRETS = CREDENTIALS_DIR / "secret.toml"
 DEFAULT_CREDS = CREDENTIALS_DIR / "service_account.json"
 
@@ -295,6 +299,15 @@ def legacy_titles(acc, uid) -> list:
     return [base, f"{base} ({uid})"]
 
 
+def find_renamed_gi_tab(existing: dict, cfg: GameConfig, uid, used: set):
+    """An existing 'GI - <uid>' tab whose UID is the masked / unmasked form of `uid` (GACHA_MASK_UID was toggled)."""
+    prefix = f"{cfg.sheet_prefix} - "
+    for title in existing:
+        if title.startswith(prefix) and title not in used and same_uid(title[len(prefix):], uid):
+            return title
+    return None
+
+
 def existing_total(ws):
     try:
         raw = ws.acell(TOTAL_CELL).value
@@ -375,6 +388,13 @@ def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
                         existing[title] = ws
                         log.info(f"renamed tab '{old}' -> '{title}'")
                         break
+                if ws is None and str(uid):
+                    old = find_renamed_gi_tab(existing, cfg, uid, used)
+                    if old:
+                        ws = existing.pop(old)
+                        ws.update_title(title)
+                        existing[title] = ws
+                        log.info(f"renamed tab '{old}' -> '{title}' (UID masking changed)")
 
             if ws is not None:
                 old_total = existing_total(ws)
@@ -432,7 +452,7 @@ def check_service_account(info: dict):
                  "-----BEGIN PRIVATE KEY-----). Paste the value from the service-account JSON file.")
 
 
-def parse_args():
+def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Sync Genshin Impact and Honkai: Star Rail pull history to Google Sheets.")
     p.add_argument("--csv", "--gi-csv", dest="gi_csv", default=str(DEFAULT_CSV["GI"]), help="Genshin data_clean_gi.csv")
     p.add_argument("--hsr-csv", default=str(DEFAULT_CSV["HSR"]), help="Honkai: Star Rail data_clean_hsr.csv")
@@ -443,15 +463,15 @@ def parse_args():
     p.add_argument("--secrets", default=str(DEFAULT_SECRETS), help="Path to secret.toml")
     p.add_argument("--creds", default=os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"),
                    help="Service-account JSON key (alternative to secret.toml)")
-    p.add_argument("--preprocess", action="store_true", help="Run the 02_preprocess script of each selected game first")
+    p.add_argument("--preprocess", action="store_true", help="Run preprocess.py for each selected game first")
     p.add_argument("--include-3star", action="store_true", help="Also list 3* pulls")
     p.add_argument("--force", action="store_true", help="Overwrite tabs even if the new data has fewer pulls")
     p.add_argument("--dry-run", action="store_true", help="Build tables and print a preview; no Google access")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None) -> int:
+    args = parse_args(argv)
     selected = [g.strip().upper() for g in args.games.split(",") if g.strip()]
     unknown = [g for g in selected if g not in GAMES]
     if unknown:
@@ -460,15 +480,21 @@ def main():
 
     if args.preprocess:
         for key in selected:
-            print(f"Running {PREPROCESS_SCRIPT[key]} ...")
-            subprocess.run([sys.executable, str(SCRIPT_DIR / PREPROCESS_SCRIPT[key])], check=True)
+            print(f"Preprocessing {key.lower()} ...")
+            if __package__:
+                from .preprocess import main as preprocess_main
+            else:
+                from preprocess import main as preprocess_main
+            code = preprocess_main(["--game", key.lower()])
+            if code:
+                sys.exit(f"preprocess failed for {key.lower()} (exit code {code}).")
 
     frames = []
     for key in selected:
         path = csv_paths[key]
         if not path.exists():
             log.warning(f"{GAMES[key].title}: {path} not found, skipped "
-                  f"(run {PREPROCESS_SCRIPT[key]} or use --preprocess).")
+                  f"(run: python -m pipeline preprocess --games {key.lower()}, or use --preprocess).")
             continue
         frames.append((GAMES[key], load_clean(path)))
     if not frames:
@@ -487,7 +513,7 @@ def main():
                     print(f"  {name}: {n:,} rows | {grid[ROW_SUMMARY][t * (TABLE_WIDTH + GAP)]}")
                 for row in grid[ROW_HEADER:ROW_HEADER + 4]:
                     print("   ", row[:6])
-        return
+        return 0
 
     secrets = load_secrets(Path(args.secrets))
     sheet_id = args.sheet_id or secrets.get("gsheet", {}).get("spreadsheet_id")
@@ -501,6 +527,12 @@ def main():
         if not Path(args.creds).exists():
             sys.exit(f"Service-account key not found: {args.creds}")
         client = gspread.service_account(filename=args.creds)
+    elif os.environ.get("GCP_SERVICE_ACCOUNT_JSON"):
+        try:
+            info = json.loads(os.environ["GCP_SERVICE_ACCOUNT_JSON"])
+        except ValueError as exc:
+            sys.exit(f"GCP_SERVICE_ACCOUNT_JSON is not valid JSON: {exc}")
+        client = gspread.service_account_from_dict(info)
     elif secrets.get("gcp_service_account"):
         info = dict(secrets["gcp_service_account"])
         check_service_account(info)
@@ -515,7 +547,8 @@ def main():
     print(f"\nDone. {n} tab(s) updated: {sh.url}")
     if failed:
         sys.exit(f"{len(failed)} tab(s) failed and were left unchanged: {', '.join(failed)}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -2,9 +2,9 @@
 config.py
 =========
 Single source of truth for per-game settings AND project paths. Imported by:
-    - pipeline/01_fetch_*_lookup.py, 02_preprocess_*.py     (paths)
-    - pipeline/03_analytics_gi.py / 03_analytics_hsr.py     (charts + Luck Score)
-    - pipeline/04_sync_gsheet.py                            (Google Sheets)
+    - pipeline/fetch_lookup.py, preprocess.py               (paths)
+    - pipeline/analytics_core.py                            (charts + Luck Score)
+    - pipeline/sync_gsheet.py                               (Google Sheets)
     - dashboard.py (project root)                           (Streamlit dashboard)
 
 Pure standard library on purpose (no pandas / matplotlib), so lightweight
@@ -28,7 +28,7 @@ DATA_DIR = ROOT_DIR / "data"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 CREDENTIALS_DIR = ROOT_DIR / "credentials"
 
-# Cleaned CSVs written by 02_preprocess_*.py (GI used to be called data_clean.csv)
+# Cleaned CSVs written by preprocess.py (GI used to be called data_clean.csv)
 GI_CLEAN = DATA_DIR / "data_clean_gi.csv"
 HSR_CLEAN = DATA_DIR / "data_clean_hsr.csv"
 LEGACY_GI_CLEAN = DATA_DIR / "data_clean.csv"
