@@ -15,23 +15,28 @@ Analytics, interactive dashboard, and auto-updating Google Sheet from your gacha
 .
 ├── dashboard.py                 # Streamlit dashboard
 ├── pipeline/                    # all data / analytics scripts
+│   ├── __main__.py              # `python -m pipeline ...`: one command for the whole pipeline
 │   ├── config.py                # pity, soft pity, rate-up, banners, colours, sheet styles, project paths, timezone
 │   ├── luck.py                  # Luck Score formula (pandas only; used by analytics_core.py and dashboard.py)
 │   ├── analytics_core.py        # shared chart engine for the PNG reports
 │   ├── lookup_utils.py          # safe download + validation for the lookup files
+│   ├── logsetup.py              # logging used by the scripts (GitHub Actions annotations)
 │   ├── 01_fetch_gi_lookup.py    # Genshin id -> name/rarity lookup
 │   ├── 01_fetch_hsr_lookup.py   # Star Rail id -> name/rarity lookup
-│   ├── 02_preprocess_gi.py      # Paimon.moe JSON  -> data/data_clean.csv
+│   ├── 02_preprocess_gi.py      # Paimon.moe JSON  -> data/data_clean_gi.csv
 │   ├── 02_preprocess_hsr.py     # StarRailStation  -> data/data_clean_hsr.csv
 │   ├── 03_analytics_gi.py       # CSV -> outputs/gi/
 │   ├── 03_analytics_hsr.py      # CSV -> outputs/hsr/
 │   ├── 03_radiance_check_gi.py  # tests the Capturing Radiance counter model on your Genshin data
 │   └── 04_sync_gsheet.py        # CSV -> Google Sheet (optional)
-├── data/                        # exports, lookup JSON, data_clean*.csv
+├── tests/                       # pytest suite (decoder, Luck Score, lookup parser, preprocessing, runner)
+├── data/                        # exports, lookup JSON, data_clean_gi.csv, data_clean_hsr.csv
 ├── outputs/                     # generated charts + tables
 │   ├── gi/
 │   └── hsr/
-└── credentials/                 # secret.toml (git-ignored)
+├── credentials/                 # secret.toml (git-ignored)
+├── requirements.txt / requirements-dev.txt   # run / run + tests
+└── .github/                     # workflow (cml.yml) + dependabot.yml
 ```
 
 File names follow the pipeline step: `01` fetch → `02` preprocess → `03` analytics → `04` sync. `_gi` / `_hsr` marks the game.
@@ -39,11 +44,13 @@ File names follow the pipeline step: `01` fetch → `02` preprocess → `03` ana
 ## Pipeline
 
 ```
-Export → 01_fetch_*_lookup → 02_preprocess_* → data/data_clean[_hsr].csv
+Export → 01_fetch_*_lookup → 02_preprocess_* → data/data_clean_gi.csv / data_clean_hsr.csv
                                                     ├─► 03_analytics_*.py → outputs/gi, outputs/hsr
                                                     ├─► dashboard.py      (Streamlit)
                                                     └─► 04_sync_gsheet.py (Google Sheets, optional)
 ```
+
+All stages in one command: `python -m pipeline all` (see Quick Start).
 
 `pipeline/config.py` is the single place for pity, soft pity, rate-up chance, banners, colours, sheet styles, the project paths (`data/`, `outputs/`, `credentials/`) and the timezone (`DEFAULT_TZ`). The dashboard and the analytics both use the same `GameConfig` and the same Luck Score (`pipeline/luck.py`).
 
@@ -82,6 +89,17 @@ python3 pipeline/01_fetch_hsr_lookup.py
 python3 pipeline/02_preprocess_hsr.py
 ```
 
+**Everything in one command**
+
+```bash
+python -m pipeline all                  # fetch -> preprocess -> analytics -> sync, for every game with an export in data/
+python -m pipeline all --no-sync        # without the Google Sheets step
+python -m pipeline preprocess --games gi   # one stage / one game (fetch | preprocess | analytics | sync)
+python -m pipeline all --dry-run        # only print what would run
+```
+
+Games are detected from `data/` (`paimon-moe-local-data.json`, `starrailstation-backup_*.dat`) unless `--games gi,hsr` is given. With `all`, the sheet sync runs only when Google credentials exist (`credentials/secret.toml`, or `GSHEET_ID` + `GOOGLE_APPLICATION_CREDENTIALS`). A failing step stops the run. Options of single scripts (`--uid`, `--tz`, …) are used by calling the script directly, as shown above.
+
 **Dashboard**
 
 ```bash
@@ -97,22 +115,29 @@ Python 3.9+. On Windows use `python` or `py`.
 | Step | Command | Output |
 |---|---|---|
 | 01 | `pipeline/01_fetch_gi_lookup.py` / `pipeline/01_fetch_hsr_lookup.py` | lookup JSON in `data/` |
-| 02 | `pipeline/02_preprocess_gi.py` / `pipeline/02_preprocess_hsr.py` | `data/data_clean[_hsr].csv` |
+| 02 | `pipeline/02_preprocess_gi.py` / `pipeline/02_preprocess_hsr.py` | `data/data_clean_gi.csv` / `data/data_clean_hsr.csv` |
 | 03 | `pipeline/03_analytics_gi.py` / `pipeline/03_analytics_hsr.py` | `outputs/gi/` / `outputs/hsr/` |
 | 03 | `pipeline/03_radiance_check_gi.py` | `outputs/gi/08_radiance_check.csv` (optional check, Genshin only) |
 | 04 | `pipeline/04_sync_gsheet.py --preprocess` | Google Sheet |
+| – | `python -m pipeline all` | all stages above |
+| – | `python -m pytest` | unit tests |
 | – | `streamlit run dashboard.py` | `http://localhost:8501` |
 
 - **01 options:** `--force` (write the lookup even if it fails the sanity checks)
-- **02 options:** Genshin `--list-uid`, `--uid`, `--source-tz`, `--tz`, `--keep-duplicates`; Star Rail `--list-profile`, `--profile`, `--input`, `--tz`
+- **02 options:** Genshin `--list-uid`, `--uid`, `--source-tz`, `--tz`, `--keep-duplicates`, `--mask-uid`; Star Rail `--list-profile`, `--profile`, `--input`, `--tz`
 - **03 options:** `--input`, `--outdir`; radiance check also `--start` (default 2024-08-28)
 - **Dashboard custom files:** `streamlit run dashboard.py -- --gi-data <csv> --hsr-data <csv>`
 
 ### Safety checks
 
+- **Tests:** `pip install -r requirements-dev.txt`, then `python -m pytest`. They cover the Star Rail backup decoder (checked against the JavaScript `lz-string` library), the Luck Score, the lookup parser and its validation, Genshin duplicate/timezone/UID-mask logic, the radiance model, game configs and the runner. CI runs them before anything else.
 - **Lookup files (01):** a new download only replaces the existing JSON if it has enough items, did not shrink by more than 5%, and every item has a name and a rarity (1–5). Otherwise the old file is kept and the reason is printed. If there is no network, the existing file is kept too. The script only fails when there is no usable lookup file at all.
 - **Timezone (02):** both games write `datetime` in `DEFAULT_TZ` (`pipeline/config.py`, default `Asia/Jakarta`). The Star Rail backup stores UTC timestamps and is converted. The Paimon.moe export has no timezone, so its timestamps are assumed to be in `--source-tz` (default: the same as `--tz`, so nothing is shifted). If your Genshin export was made in another timezone, pass `--source-tz`.
-- **Duplicate pulls (02, Genshin):** rows with the same account, banner, time, item, pity and rate are dropped and `pull_number` is renumbered. Rows without pity are never dropped, and if more than 5% of the rows would be removed nothing is dropped and a warning is shown. Use `--keep-duplicates` to turn it off. (Star Rail already drops duplicates by `pull_uid`.)
+- **Duplicate pulls (02, Genshin):** Paimon.moe pulls have no unique id and every 3★ row has pity 1, so single rows can't be compared (a real 10-pull often contains the same item several times). What a merge of overlapping exports produces is a whole 10-pull twice, i.e. more than 10 rows in one second. Only such a block that is an exact repeat is cut back to one copy and `pull_number` is renumbered; anything else is only reported. Use `--keep-duplicates` to turn it off. (Star Rail drops duplicates by `pull_uid`.)
+
+### Data file names
+
+Cleaned CSVs are `data/data_clean_gi.csv` and `data/data_clean_hsr.csv` (per account/profile: `data_clean_gi_<uid>.csv`, `data_clean_hsr_<profile>.csv`). Genshin's file used to be `data/data_clean.csv`; scripts and the dashboard still read the old name if the new one doesn't exist yet. To migrate: run `02_preprocess_gi.py` (or `git mv data/data_clean.csv data/data_clean_gi.csv`), then remove the old file; CI does the removal itself (`git rm`).
 
 ### Analytics output
 
@@ -167,13 +192,16 @@ python3 pipeline/04_sync_gsheet.py --dry-run      # preview, no Google access
 | `--force` | overwrite even if new data has fewer pulls |
 | `--sheet-id`, `--creds`, `--secrets`, `--csv`, `--hsr-csv` | path / ID overrides |
 
-Existing data is never deleted; a tab is skipped if the new export has fewer pulls. A tab is never cleared in place: the new content is written to a temporary tab (`~new <title>`) and swapped in only after it was written completely, so a quota or network error leaves the existing tab as it was. If any tab fails, the script exits with an error after trying the others. A leftover `~old <title>` tab means an earlier run was interrupted: check it and delete it by hand.
+Existing data is never deleted; a tab is skipped if the new export has fewer pulls. A tab is never cleared in place: the new content is written to a temporary tab (`~new <title>`) and swapped in only after it was written completely, so a quota or network error leaves the existing tab as it was. If any tab fails, the script exits with an error after trying the others. A leftover `~old <title>` tab means an earlier run was interrupted: check it and delete it by hand. Tab names contain the UID as written in the CSV: if you switch `--mask-uid` on, new tabs get the masked UID and the old `GI - <real uid>` tabs stay until you delete them.
 
 ## Automation (GitHub Actions)
 
-`.github/workflows/cml.yml` runs on push of a new export, or manually. Each game runs only if its export exists. Steps: fetch lookup → preprocess → Google Sheets sync (optional) → analytics → dashboard smoke test (`dashboard.py`) → commit `data/` and `outputs/` → post a report (from `outputs/gi/` and `outputs/hsr/`) as a commit comment.
+`.github/workflows/cml.yml` runs on push of a new export, or manually. Each game runs only if its export exists. Steps: install (pip cached) → **tests** → detect exports → `python -m pipeline fetch` → `preprocess` → Google Sheets sync (optional) → `analytics` → dashboard smoke test (`dashboard.py`) → commit `data/` and `outputs/` → post a report (from `outputs/gi/` and `outputs/hsr/`) as a commit comment. Failing tests stop the run before any data is touched.
 
-Optional secrets: `GSHEET_ID`, `GCP_SERVICE_ACCOUNT_JSON` (without them the sync step is skipped).
+- Actions are pinned to a commit SHA (the tag is in a comment); `.github/dependabot.yml` proposes updates monthly.
+- Optional secrets: `GSHEET_ID`, `GCP_SERVICE_ACCOUNT_JSON` (without them the sync step is skipped).
+- Optional repository variable: `GACHA_MASK_UID=1` masks the Genshin UID in `data_clean_gi.csv`.
+- In a private repository the report links to the chart files instead of embedding them (`raw.githubusercontent.com` images only load for public repos).
 
 **Update data**
 
@@ -183,10 +211,11 @@ git pull --rebase origin main
 git add data/ && git commit -m "update gacha data" && git push
 ```
 
-## Security
+## Security & Privacy
 
 - Never commit the service-account key (`credentials/` is git-ignored).
-- Exports and CSV contain your UID; check the repo visibility.
+- **UID:** the Paimon.moe export (`wish-uid`) and `data_clean_gi.csv` (`uid`) contain your Genshin UID, and it is used in Sheet tab names. The Star Rail backup has no UID. A UID is not a password but it identifies your account, so for a public repository either make the repository private (Streamlit Cloud can deploy private repos you own) or at least use `--mask-uid` / `GACHA_MASK_UID=1`.
+- Masking only changes the output (`887284572` → `88xxxxx72`, more digits if two accounts would collide). It can't hide the UID in the raw export `data/paimon-moe-local-data.json`; that file stays readable in the repository.
 - If a key leaks, delete it in Google Cloud and create a new one.
 
 ## Troubleshooting
@@ -200,6 +229,8 @@ git add data/ && git commit -m "update gacha data" && git push
 | `possible duplicate pull(s) … NOTHING was dropped` | More than 5% looks duplicated; check the export (merged files?) |
 | Dashboard "No data file" | Run the matching `02_preprocess_…` or pass `--gi-data` / `--hsr-data` |
 | `ModuleNotFoundError: matplotlib` | `pip install -r requirements.txt` |
+| `python -m pipeline`: "No export found" | Put an export in `data/` or pass `--games gi` / `--games hsr` |
+| Tests fail in CI | Run `python -m pytest -q` locally; the run stops before any data is changed |
 | `ModuleNotFoundError: pipeline` | Run `streamlit run dashboard.py` from the project root |
 | HSR has no Adventure Rank / UID | Expected: backup has neither |
 | `git push` rejected | `git pull --rebase origin main`, then push |
@@ -213,6 +244,12 @@ git add data/ && git commit -m "update gacha data" && git push
 
 ## Changelog
 
+- **Added:** `python -m pipeline` (one command for fetch → preprocess → analytics → sync); CI uses it instead of repeating every script.
+- **Added:** pytest suite in `tests/` (Star Rail LZString decoder vs. the reference library, Luck Score, lookup parser + validation, Genshin preprocessing, radiance model, config, runner); CI runs it first.
+- **Fixed:** Genshin duplicate removal compared single rows, which would have removed real 3★ pulls (3★ rows always have pity 1). Now only a whole repeated 10-pull is removed. The lookup parser no longer lets an entry without rarity pick up its neighbour's.
+- **Added:** `--mask-uid` / `GACHA_MASK_UID` for the Genshin UID; the CI report links to charts instead of embedding them in private repos.
+- **Changed:** Genshin CSV `data_clean.csv` → `data_clean_gi.csv` (old name still read as a fallback). CI: pip cache, Actions pinned to SHA, Dependabot for Actions.
+- **Changed:** scripts log through `pipeline/logsetup.py` (warnings/errors become GitHub Actions annotations).
 - **Changed:** `analytics_core.py` now uses the `GameConfig` from `config.py` (the second copy was removed); the Luck Score moved to `pipeline/luck.py`, so the dashboard no longer loads matplotlib.
 - **Added:** `pipeline/03_radiance_check_gi.py`: compares your Character Event 50/50 results with the Capturing Radiance counter model (reset vs decrement variant). The model comes from a community diagram and is not verified; the script reports how well it fits your data.
 - **Added:** `pipeline/lookup_utils.py`: lookup files are validated and written atomically; a failed or incomplete download no longer overwrites a good file.

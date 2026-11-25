@@ -3,7 +3,7 @@
 =================
 Sync the wish / warp history of both games to one Google Sheet:
 
-    Genshin Impact    data/data_clean.csv      (02_preprocess_gi.py)
+    Genshin Impact    data/data_clean_gi.csv   (02_preprocess_gi.py)
     Honkai: Star Rail data/data_clean_hsr.csv  (02_preprocess_hsr.py)
 
 Layout
@@ -63,7 +63,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config import CREDENTIALS_DIR, DATA_DIR, GAMES, GameConfig
+from config import CREDENTIALS_DIR, GAMES, GameConfig, default_clean_csv
+from logsetup import get_logger
+
+log = get_logger("sync")
 
 try:  # Python 3.11+
     import tomllib
@@ -71,7 +74,7 @@ except ModuleNotFoundError:  # older Python: pip install tomli
     tomllib = None
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_CSV = {"GI": DATA_DIR / "data_clean.csv", "HSR": DATA_DIR / "data_clean_hsr.csv"}
+DEFAULT_CSV = {"GI": default_clean_csv("GI"), "HSR": default_clean_csv("HSR")}
 PREPROCESS_SCRIPT = {"GI": "02_preprocess_gi.py", "HSR": "02_preprocess_hsr.py"}
 DEFAULT_SECRETS = CREDENTIALS_DIR / "secret.toml"
 DEFAULT_CREDS = CREDENTIALS_DIR / "service_account.json"
@@ -322,7 +325,7 @@ def swap_tab(sh, old_ws, new_ws, title: str):
     try:
         sh.del_worksheet(old_ws)
     except Exception as exc:  # new tab is already live; just leave the leftover and say so
-        print(f"[WARN] '{title}' updated, but the old copy '{backup}' could not be deleted: {exc}")
+        log.warning(f"'{title}' updated, but the old copy '{backup}' could not be deleted: {exc}")
 
 
 def write_tab(sh, cfg, grid, title, old_ws, pos, existing):
@@ -352,7 +355,7 @@ def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
     existing = {ws.title: ws for ws in sh.worksheets()}
     for t in existing:
         if t.startswith(OLD_PREFIX):
-            print(f"[WARN] leftover backup tab '{t}' found (a previous run was interrupted); check it, then delete it by hand.")
+            log.warning(f"leftover backup tab '{t}' found (a previous run was interrupted); check it, then delete it by hand.")
 
     used, written, failed, pos = set(), 0, [], 0
     for cfg, df in frames:
@@ -370,7 +373,7 @@ def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
                         ws = existing.pop(old)
                         ws.update_title(title)
                         existing[title] = ws
-                        print(f"[RENAME] '{old}' -> '{title}'")
+                        log.info(f"renamed tab '{old}' -> '{title}'")
                         break
 
             if ws is not None:
@@ -378,22 +381,18 @@ def sync(frames, sh, include_3star=False, force=False, gi_tab_name="uid"):
                 if old_total is not None and len(acc_df) < old_total and not force:
                     msg = (f"'{title}': new data has {len(acc_df):,} pulls but the sheet already has {old_total:,}. "
                            f"Nothing was changed (use --force to overwrite).")
-                    print(f"[SKIP] {msg}")
-                    if os.environ.get("GITHUB_ACTIONS"):
-                        print(f"::warning::Google Sheets sync skipped {msg}")
+                    log.warning(f"{msg}")
                     pos += 1
                     continue
 
             try:
                 existing[title] = write_tab(sh, cfg, grid, title, ws, pos, existing)
             except Exception as exc:
-                print(f"[FAIL] '{title}': {exc}  (the existing tab was left unchanged)")
-                if os.environ.get("GITHUB_ACTIONS"):
-                    print(f"::warning::Google Sheets sync failed for '{title}': {exc}")
+                log.error(f"'{title}': {exc}  (the existing tab was left unchanged)")
                 failed.append(title)
                 pos += 1
                 continue
-            print(f"[OK]   '{title}': {len(acc_df):,} pulls synced")
+            log.info(f"'{title}': {len(acc_df):,} pulls synced")
             written += 1
             pos += 1
             time.sleep(1.5)  # stay well below the API rate limit
@@ -435,7 +434,7 @@ def check_service_account(info: dict):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Sync Genshin Impact and Honkai: Star Rail pull history to Google Sheets.")
-    p.add_argument("--csv", "--gi-csv", dest="gi_csv", default=str(DEFAULT_CSV["GI"]), help="Genshin data_clean.csv")
+    p.add_argument("--csv", "--gi-csv", dest="gi_csv", default=str(DEFAULT_CSV["GI"]), help="Genshin data_clean_gi.csv")
     p.add_argument("--hsr-csv", default=str(DEFAULT_CSV["HSR"]), help="Honkai: Star Rail data_clean_hsr.csv")
     p.add_argument("--games", default="gi,hsr", help="Comma-separated games to sync: gi, hsr (default: both)")
     p.add_argument("--gi-tab-name", choices=["uid", "account"], default="uid",
@@ -468,7 +467,7 @@ def main():
     for key in selected:
         path = csv_paths[key]
         if not path.exists():
-            print(f"[WARN] {GAMES[key].title}: {path} not found, skipped "
+            log.warning(f"{GAMES[key].title}: {path} not found, skipped "
                   f"(run {PREPROCESS_SCRIPT[key]} or use --preprocess).")
             continue
         frames.append((GAMES[key], load_clean(path)))

@@ -5,7 +5,7 @@ Preprocessing pipeline: starrailstation-backup_*.dat -> data_clean_hsr.csv
 
 Converts the StarRailStation backup (Honkai: Star Rail warp history) into one
 tidy table (one row = one warp), with the same column layout as the Genshin
-data_clean.csv so the dashboard can reuse the same logic.
+data_clean_gi.csv so the dashboard can reuse the same logic.
 
 Input:
     data/starrailstation-backup_YYYY-MM-DD.dat  -> raw backup (latest one is picked automatically)
@@ -40,6 +40,9 @@ from pathlib import Path
 import pandas as pd
 
 from config import DATA_DIR, DEFAULT_TZ, ROOT_DIR
+from logsetup import get_logger
+
+log = get_logger("preprocess_hsr")
 
 BACKUP_GLOB = "starrailstation-backup_*.dat"
 CHAR_LOOKUP_PATH = DATA_DIR / "hsr_char_full.json"
@@ -265,7 +268,7 @@ def build_rows(profiles: dict, char_lookup: dict, lc_lookup: dict):
                 )
 
     if n_rarity_mismatch:
-        print(f"[WARN] {n_rarity_mismatch} row(s): rarity in backup differs from the lookup file.")
+        log.warning(f"{n_rarity_mismatch} row(s): rarity in backup differs from the lookup file.")
     return pd.DataFrame(rows)
 
 
@@ -276,12 +279,12 @@ def postprocess(df: pd.DataFrame, tz: str) -> pd.DataFrame:
 
     n_bad = df["datetime"].isna().sum()
     if n_bad:
-        print(f"[WARN] {n_bad} row(s) have an unparseable timestamp and were dropped.")
+        log.warning(f"{n_bad} row(s) have an unparseable timestamp and were dropped.")
         df = df[df["datetime"].notna()].copy()
 
     n_dup = df.duplicated(subset=["profile_key", "pull_uid"]).sum()
     if n_dup:
-        print(f"[WARN] {n_dup} duplicated pull_uid row(s) dropped.")
+        log.warning(f"{n_dup} duplicated pull_uid row(s) dropped.")
         df = df.drop_duplicates(subset=["profile_key", "pull_uid"])
 
     df = df.sort_values(["account", "banner_type", "datetime", "pull_number"]).reset_index(drop=True)

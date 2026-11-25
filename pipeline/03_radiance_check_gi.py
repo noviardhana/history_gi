@@ -2,7 +2,7 @@
 03_radiance_check_gi.py
 =======================
 Checks the Genshin Character Event 50/50 results against the "Capturing Radiance"
-counter model, per account. Data: data/data_clean.csv (from 02_preprocess_gi.py).
+counter model, per account. Data: data/data_clean_gi.csv (from 02_preprocess_gi.py).
 
 Model (from the community diagram, NOT verified against official sources):
     a counter k = 0..3 counts lost 50/50s; chance to get the featured character
@@ -22,7 +22,7 @@ A model with impossible_losses > 0 does not fit your data (or the counter starte
 
 Usage:
     python3 pipeline/03_radiance_check_gi.py
-    python3 pipeline/03_radiance_check_gi.py --input data/data_clean_887284572.csv --start 2024-08-28
+    python3 pipeline/03_radiance_check_gi.py --input data/data_clean_gi_887284572.csv --start 2024-08-28
 """
 
 import argparse
@@ -30,7 +30,7 @@ import math
 
 import pandas as pd
 
-from config import DATA_DIR, OUTPUT_DIR
+from config import OUTPUT_DIR, default_clean_csv
 
 P_WIN = [0.50, 0.50, 0.75, 1.00]   # chance to get the featured character at counter 0..3
 LAUNCH = "2024-08-28"              # Genshin 5.0 release (Capturing Radiance); check this date
@@ -68,7 +68,7 @@ def run_model(wins: list, mode: str) -> dict:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--input", default=str(DATA_DIR / "data_clean.csv"))
+    ap.add_argument("--input", default=str(default_clean_csv("GI")))
     ap.add_argument("--start", default=LAUNCH, help=f"first date to include (default {LAUNCH})")
     ap.add_argument("--outdir", default=str(OUTPUT_DIR / "gi"))
     args = ap.parse_args()

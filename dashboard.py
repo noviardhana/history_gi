@@ -22,7 +22,7 @@ Usage:
     streamlit run dashboard.py
 
     Custom data files:
-    streamlit run dashboard.py -- --gi-data data/data_clean_887284572.csv --hsr-data data/data_clean_hsr.csv
+    streamlit run dashboard.py -- --gi-data data/data_clean_gi_887284572.csv --hsr-data data/data_clean_hsr.csv
 
 Run from the project root; CSV files beside this script are detected automatically.
 """
@@ -40,14 +40,19 @@ import plotly.io as pio
 import streamlit as st
 
 from pipeline.luck import compute_luck
-from pipeline.config import GAMES, GameConfig
+from pipeline.config import GAMES, HSR_CLEAN, GameConfig, default_clean_csv
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-# Prefer the supplied CSVs beside this script; retain the conventional data/ fallback.
+def _first_existing(*paths: Path) -> Path:
+    """First CSV that exists; otherwise the last candidate (the standard data/ location)."""
+    return next((p for p in paths if p.exists()), paths[-1])
+
+
+# Prefer the supplied CSVs beside this script; fall back to data/ (GI also accepts the old name data_clean.csv).
 DEFAULT_DATA = {
-    "GI": BASE_DIR / "data_clean.csv" if (BASE_DIR / "data_clean.csv").exists() else DATA_DIR / "data_clean.csv",
-    "HSR": BASE_DIR / "data_clean_hsr.csv" if (BASE_DIR / "data_clean_hsr.csv").exists() else DATA_DIR / "data_clean_hsr.csv",
+    "GI": _first_existing(BASE_DIR / "data_clean_gi.csv", BASE_DIR / "data_clean.csv", default_clean_csv("GI")),
+    "HSR": _first_existing(BASE_DIR / "data_clean_hsr.csv", HSR_CLEAN),
 }
 PREPROCESS_HINT = {"GI": "pipeline/02_preprocess_gi.py", "HSR": "pipeline/02_preprocess_hsr.py"}
 

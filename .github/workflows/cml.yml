@@ -19,15 +19,26 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
+    env:
+      # Optional repository variable (Settings > Secrets and variables > Actions > Variables):
+      # set GACHA_MASK_UID to 1 to mask the Genshin UID in data/data_clean_gi.csv (887284572 -> 88xxxxx72).
+      GACHA_MASK_UID: ${{ vars.GACHA_MASK_UID }}
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to a commit SHA (the comment is the tag); Dependabot keeps them current.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version-file: 'runtime.txt'
+          cache: pip
+          cache-dependency-path: requirements*.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
+
+      # Unit tests first: a broken decoder / parser / Luck Score stops the run before any data is touched.
+      - name: Run tests
+        run: python -m pytest -q
 
       # Each game runs only if its export is in the repo. At least one is required.
       #   Genshin Impact : data/paimon-moe-local-data.json
@@ -56,21 +67,17 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Games to process: $games"
 
-      - name: Fetch rarity lookup - Genshin Impact (always overwrite)
-        if: steps.detect.outputs.gi == 'true'
-        run: python pipeline/01_fetch_gi_lookup.py
+      # `python -m pipeline <stage>` runs the matching script of every detected game
+      # (pipeline/__main__.py). A rejected lookup download keeps the existing file.
+      - name: Fetch lookups
+        env:
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: python -m pipeline fetch --games "$GAMES"
 
-      - name: Fetch lookup - Honkai Star Rail (always overwrite)
-        if: steps.detect.outputs.hsr == 'true'
-        run: python pipeline/01_fetch_hsr_lookup.py
-
-      - name: Run preprocessing - Genshin Impact
-        if: steps.detect.outputs.gi == 'true'
-        run: python pipeline/02_preprocess_gi.py
-
-      - name: Run preprocessing - Honkai Star Rail
-        if: steps.detect.outputs.hsr == 'true'
-        run: python pipeline/02_preprocess_hsr.py
+      - name: Run preprocessing
+        env:
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: python -m pipeline preprocess --games "$GAMES"
 
       # Optional: only runs when both repo secrets exist (Settings > Secrets and
       # variables > Actions): GSHEET_ID and GCP_SERVICE_ACCOUNT_JSON (the full
@@ -91,15 +98,12 @@ jobs:
           KEY="$RUNNER_TEMP/gcp_sa.json"
           trap 'rm -f "$KEY"' EXIT
           (umask 077; printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$KEY")
-          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python pipeline/04_sync_gsheet.py --games "$GAMES"
+          GOOGLE_APPLICATION_CREDENTIALS="$KEY" python -m pipeline sync --games "$GAMES"
 
-      - name: Run analytics - Genshin Impact
-        if: steps.detect.outputs.gi == 'true'
-        run: python pipeline/03_analytics_gi.py
-
-      - name: Run analytics - Honkai Star Rail
-        if: steps.detect.outputs.hsr == 'true'
-        run: python pipeline/03_analytics_hsr.py
+      - name: Run analytics
+        env:
+          GAMES: ${{ steps.detect.outputs.games }}
+        run: python -m pipeline analytics --games "$GAMES"
 
       # Renders the whole dashboard headlessly (both game sections) and fails
       # the step on any exception. Non-blocking: data is still committed below.
@@ -124,8 +128,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # data_clean.csv was renamed to data_clean_gi.csv: drop the old file if it is still tracked
+          git rm -q --ignore-unmatch data/data_clean.csv
           for f in \
-            data/char_full.json data/weapon_full.json data/data_clean.csv \
+            data/char_full.json data/weapon_full.json data/data_clean_gi.csv \
             data/hsr_char_full.json data/hsr_lc_full.json data/data_clean_hsr.csv \
             outputs; do
             if [ -e "$f" ]; then git add "$f"; fi
@@ -142,6 +148,9 @@ jobs:
         run: |
           SHA=$(git rev-parse HEAD)
           RAW="https://raw.githubusercontent.com/${{ github.repository }}/${SHA}"
+          BLOB="https://github.com/${{ github.repository }}/blob/${SHA}"
+          # raw.githubusercontent.com images do not load for private repositories: link to the file instead
+          PRIVATE="${{ github.event.repository.private }}"
           {
             echo "## 📊 Gacha Analytics Report"
             echo "Generated on \`$(date -u +'%Y-%m-%d %H:%M UTC')\` · games: ${{ steps.detect.outputs.games }}"
@@ -158,7 +167,11 @@ jobs:
 
             find outputs -type f -name '*.png' 2>/dev/null | sort | while IFS= read -r png; do
               echo "### ${png#outputs/}"
-              echo "![${png#outputs/}](${RAW}/${png})"
+              if [ "$PRIVATE" = "false" ]; then
+                echo "![${png#outputs/}](${RAW}/${png})"
+              else
+                echo "[${png#outputs/}](${BLOB}/${png})"
+              fi
               echo
             done
           } > report.md

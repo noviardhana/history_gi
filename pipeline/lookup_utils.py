@@ -23,6 +23,10 @@ import time
 import urllib.request
 from pathlib import Path
 
+from logsetup import get_logger
+
+log = get_logger("lookup_utils")
+
 SHRINK_TOLERANCE = 0.95
 RARITY_RANGE = range(1, 6)
 
@@ -35,7 +39,7 @@ def fetch_text(url: str, retries: int = 3, timeout: int = 30) -> str:
                 return resp.read().decode("utf-8")
         except Exception as exc:  # noqa: BLE001 - network errors vary
             last = exc
-            print(f"  [retry {attempt}/{retries}] {exc}")
+            log.warning(f"download attempt {attempt}/{retries} failed: {exc}")
             time.sleep(2 * attempt)
     raise ConnectionError(f"could not download {url}: {last}")
 
@@ -71,18 +75,18 @@ def publish_lookup(path: Path, lookup: dict, min_items: int, force: bool = False
 
     problems = [] if force else problems_in(lookup, min_items, previous)
     if problems:
-        print(f"  [REJECTED] new lookup not written:")
+        log.warning(f"new lookup not written:")
         for p in problems:
-            print(f"    - {p}")
+            log.warning(f"  - {p}")
         if previous is not None:
-            print(f"  -> kept the existing {path.name} ({len(previous)} items)")
+            log.warning(f"kept the existing {path.name} ({len(previous)} items)")
             return "kept"
         return "failed"
 
     if previous:
         changed = [k for k in lookup if k in previous and lookup[k].get("rarity") != previous[k].get("rarity")]
         if changed:
-            print(f"  [WARN] rarity changed for {len(changed)} existing item(s) (e.g. {changed[:5]}) - check the source format.")
+            log.warning(f"rarity changed for {len(changed)} existing item(s) (e.g. {changed[:5]}) - check the source format.")
         print(f"  -> {len(lookup) - len(previous):+d} item(s) vs the previous file")
 
     tmp = path.with_name(path.name + ".tmp")

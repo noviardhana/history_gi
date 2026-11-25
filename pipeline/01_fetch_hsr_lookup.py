@@ -22,7 +22,10 @@ import json
 import sys
 
 from config import DATA_DIR
+from logsetup import get_logger
 from lookup_utils import fetch_text, finish, publish_lookup
+
+log = get_logger("fetch_hsr")
 
 BASE_URL = "https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/en"
 MIN_ITEMS = {"characters.json": 30, "light_cones.json": 50}  # sanity floor; real files are larger
@@ -49,7 +52,7 @@ def main():
         try:
             raw = fetch_json(f"{BASE_URL}/{filename}")
         except (ConnectionError, ValueError) as exc:
-            print(f"  [ERROR] {exc}")
+            log.error(f"{exc}")
             results[filename] = "kept" if out_path.exists() else "failed"
             continue
         slim = {str(k): {"name": v.get("name"), "rarity": v.get("rarity")} for k, v in raw.items()}

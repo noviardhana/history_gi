@@ -28,6 +28,21 @@ DATA_DIR = ROOT_DIR / "data"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 CREDENTIALS_DIR = ROOT_DIR / "credentials"
 
+# Cleaned CSVs written by 02_preprocess_*.py (GI used to be called data_clean.csv)
+GI_CLEAN = DATA_DIR / "data_clean_gi.csv"
+HSR_CLEAN = DATA_DIR / "data_clean_hsr.csv"
+LEGACY_GI_CLEAN = DATA_DIR / "data_clean.csv"
+
+
+def default_clean_csv(game_key: str) -> Path:
+    """Default CSV of a game; Genshin falls back to the old name data_clean.csv if only that exists."""
+    if game_key.upper() == "HSR":
+        return HSR_CLEAN
+    if not GI_CLEAN.exists() and LEGACY_GI_CLEAN.exists():
+        return LEGACY_GI_CLEAN
+    return GI_CLEAN
+
+
 # Timezone of the `datetime` column in every data_clean*.csv, so both games are comparable.
 DEFAULT_TZ = "Asia/Jakarta"
 

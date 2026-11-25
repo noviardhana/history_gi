@@ -51,9 +51,10 @@ Thumbs.db
 # ============================================================
 # data/                  CI triggers on data/paimon-moe-local-data.json and
 #                        data/starrailstation-backup_*.dat, and commits the
-#                        lookup JSON + data_clean*.csv back to main
+#                        lookup JSON + data_clean_gi.csv / data_clean_hsr.csv back to main
 # outputs/               gi/ and hsr/, committed back by CI
 # pipeline/              all scripts except the dashboard
 # .streamlit/config.toml dashboard theme
 # .github/workflows/     CI
-# requirements.txt, runtime.txt
+# tests/                pytest suite
+# requirements.txt, requirements-dev.txt, runtime.txt

@@ -1,7 +1,7 @@
 """
 02_preprocess_gi.py
 ====================
-Preprocessing pipeline: paimon-moe-local-data.json -> data_clean.csv
+Preprocessing pipeline: paimon-moe-local-data.json -> data_clean_gi.csv
 
 Converts the raw Paimon.moe export (Genshin Impact wish/gacha history) into
 one tidy table (one row = one pull) ready for EDA & the dashboard
@@ -16,33 +16,40 @@ Input:
     run that script first before this one)
 
 Output:
-    data/data_clean.csv            -> default, all UIDs combined
-    data/data_clean_<uid>.csv      -> when run with --uid <uid>
+    data/data_clean_gi.csv            -> default, all UIDs combined
+    data/data_clean_gi_<uid>.csv      -> when run with --uid <uid>
 
 Usage:
-    python3 pipeline/02_preprocess_gi.py                 # all accounts -> data_clean.csv
+    python3 pipeline/02_preprocess_gi.py                 # all accounts -> data_clean_gi.csv
     python3 pipeline/02_preprocess_gi.py --list-uid      # show available UIDs
-    python3 pipeline/02_preprocess_gi.py --uid 887284572 # single account -> data_clean_887284572.csv
+    python3 pipeline/02_preprocess_gi.py --uid 887284572 # single account -> data_clean_gi_887284572.csv
     python3 pipeline/02_preprocess_gi.py --source-tz Asia/Jakarta --tz Asia/Jakarta
     python3 pipeline/02_preprocess_gi.py --keep-duplicates   # skip duplicate removal
+    python3 pipeline/02_preprocess_gi.py --mask-uid          # 887284572 -> 88xxxxx72 in the output
 
 Timezone: the Paimon.moe export has no timezone, so the timestamps are taken as
 --source-tz (default: DEFAULT_TZ in config.py) and converted to --tz (default: the same
 DEFAULT_TZ that the Star Rail script uses). With both defaults nothing is shifted.
 
-Duplicates: pulls with the same account, banner, time, item, pity and rate are dropped
-(only when pity is known, because a real 10-pull can contain the same item twice at the
-same second). If this would remove more than 5% of the rows nothing is dropped and a
-warning is printed instead.
+Duplicates: a 10-pull that appears more than once (typical for merged exports) is cut back
+to one copy. Single rows are never compared, because 3* rows always carry pity=1 and a real
+10-pull often contains the same item several times. Suspicious cases are only reported.
+
+Privacy: --mask-uid (or env GACHA_MASK_UID=1) replaces the UID in the output by a masked
+form (887284572 -> 88xxxxx72), which is also what Google Sheet tab names and the dashboard show.
 """
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import pandas as pd
 
-from config import DATA_DIR, DEFAULT_TZ
+from config import DATA_DIR, DEFAULT_TZ, GI_CLEAN
+from logsetup import get_logger
+
+log = get_logger("preprocess_gi")
 
 RAW_PATH = DATA_DIR / "paimon-moe-local-data.json"
 CHAR_LOOKUP_PATH = DATA_DIR / "char_full.json"
@@ -153,8 +160,7 @@ def build_rows(raw: dict, accounts: dict, char_lookup: dict, weapon_lookup: dict
     return pd.DataFrame(rows)
 
 
-DUP_KEY = ["account", "banner_type", "banner_code", "datetime", "item_id", "item_category", "pity", "rate_raw"]
-MAX_DUP_SHARE = 0.05  # safety net: dropping more than this share of rows means the key is probably wrong
+MAX_PULLS_PER_SECOND = 10  # a 10-pull shares one timestamp; more rows than this in one second means copied rows
 
 
 def to_target_tz(series: pd.Series, source_tz: str, tz: str) -> pd.Series:
@@ -169,22 +175,37 @@ def to_target_tz(series: pd.Series, source_tz: str, tz: str) -> pd.Series:
 
 
 def drop_duplicate_pulls(df: pd.DataFrame) -> pd.DataFrame:
-    known = df["pity"].notna()
-    dup = known & df.duplicated(subset=DUP_KEY, keep="first")
-    n_dup = int(dup.sum())
-    if not n_dup:
+    """
+    Remove rows that were copied by merging overlapping exports.
+
+    Paimon.moe pulls have no unique id, and 3* rows always carry pity=1, so rows can NOT be
+    compared one by one: a real 10-pull often holds the same 3* item several times in the
+    same second. What a merge does produce is a whole 10-pull appearing twice, i.e. more than
+    10 rows in one second (account + banner). Only such a group, and only when it is an exact
+    repeat of a 10-row block, is cut back to one block. Anything else is reported, never dropped.
+    """
+    cols = ["item_id", "item_category", "rarity", "pity", "rate_raw"]
+    drop, suspicious = [], 0
+    for _, g in df.groupby(["account", "banner_type", "datetime"], sort=False):
+        n = len(g)
+        if n <= MAX_PULLS_PER_SECOND:
+            continue
+        # NaN != NaN, so make missing values comparable before comparing the rows
+        block = list(g[cols].astype(object).fillna("<NA>").itertuples(index=False, name=None))
+        k = MAX_PULLS_PER_SECOND
+        if n % k == 0 and block == block[:k] * (n // k):
+            drop.extend(g.index[k:])
+        else:
+            suspicious += 1
+    if suspicious:
+        log.warning(f"{suspicious} second(s) hold more than {MAX_PULLS_PER_SECOND} pulls but are not an exact "
+              "repeat of a 10-pull; nothing was dropped there. Check the export.")
+    if not drop:
         return df
-    if n_dup > len(df) * MAX_DUP_SHARE:
-        print(f"[WARN] {n_dup} possible duplicate pull(s) ({n_dup / len(df):.1%} of all rows) -- more than "
-              f"{MAX_DUP_SHARE:.0%}, so NOTHING was dropped. Check the export (merged files?).")
-        return df
-    print(f"[WARN] {n_dup} duplicate pull(s) dropped (same account/banner/time/item/pity/rate).")
-    df = df[~dup].copy()
+    log.warning(f"{len(drop)} duplicated pull(s) dropped (a 10-pull that appeared more than once).")
+    df = df.drop(index=drop).copy()
     # keep pull_number a clean 1..N sequence per banner (rows are still in original order here)
     df["pull_number"] = df.groupby(["account", "banner_type"]).cumcount() + 1
-    n_unknown = int((~known).sum())
-    if n_unknown:
-        print(f"[INFO] {n_unknown} row(s) without pity were not checked for duplicates.")
     return df
 
 
@@ -196,7 +217,7 @@ def postprocess(df: pd.DataFrame, source_tz: str = DEFAULT_TZ, tz: str = DEFAULT
     # leaked into year_month as the literal string "NaT" with no warning.
     n_bad_datetime = df["datetime"].isna().sum()
     if n_bad_datetime:
-        print(f"[WARN] {n_bad_datetime} row(s) have an unparseable datetime and were dropped.")
+        log.warning(f"{n_bad_datetime} row(s) have an unparseable datetime and were dropped.")
         df = df[df["datetime"].notna()].copy()
 
     if not keep_duplicates:
@@ -214,9 +235,32 @@ def postprocess(df: pd.DataFrame, source_tz: str = DEFAULT_TZ, tz: str = DEFAULT
     # rarity with no matching lookup entry -> flag it (data quality check)
     n_unmapped = df["rarity"].isna().sum()
     if n_unmapped:
-        print(f"[WARN] {n_unmapped} row(s) have no rarity mapping (unrecognized item_id).")
+        log.warning(f"{n_unmapped} row(s) have no rarity mapping (unrecognized item_id).")
 
     return df
+
+
+def mask_uid(uid, keep: int = 2) -> str:
+    """887284572 -> 88xxxxx72 (first and last `keep` digits stay)."""
+    u = str(uid)
+    if len(u) <= keep * 2:
+        return "x" * len(u)
+    return u[:keep] + "x" * (len(u) - keep * 2) + u[-keep:]
+
+
+def mask_uids(df: pd.DataFrame) -> pd.DataFrame:
+    """Mask the uid column. Uses more digits if two different UIDs would end up with the same mask."""
+    real = df["uid"].dropna().astype(str).unique()
+    keep = 2
+    while keep < 4 and len({mask_uid(u, keep) for u in real}) < len(real):
+        keep += 1
+    df = df.copy()
+    df["uid"] = df["uid"].map(lambda u: mask_uid(u, keep) if pd.notna(u) else u)
+    return df
+
+
+def env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
 def parse_args():
@@ -236,6 +280,10 @@ def parse_args():
     parser.add_argument(
         "--tz", type=str, default=DEFAULT_TZ,
         help=f"Timezone for the 'datetime' column (default: {DEFAULT_TZ}, same as the Star Rail script).",
+    )
+    parser.add_argument(
+        "--mask-uid", action="store_true", default=env_flag("GACHA_MASK_UID"),
+        help="Mask the UID in the output (887284572 -> 88xxxxx72). Also enabled by env GACHA_MASK_UID=1.",
     )
     parser.add_argument(
         "--keep-duplicates", action="store_true",
@@ -285,15 +333,19 @@ def main():
             raise ValueError(
                 f"UID '{args.uid}' not found. Available UIDs: {available}"
             )
-        out_path = DATA_DIR / f"data_clean_{target_uid}.csv"
+        file_uid = mask_uid(target_uid) if args.mask_uid else target_uid
+        out_path = GI_CLEAN.with_name(f"data_clean_gi_{file_uid}.csv")
     else:
-        out_path = DATA_DIR / "data_clean.csv"
+        out_path = GI_CLEAN
 
     char_lookup = load_json(CHAR_LOOKUP_PATH)
     weapon_lookup = load_json(WEAPON_LOOKUP_PATH)
 
     df = build_rows(raw, accounts, char_lookup, weapon_lookup)
     df = postprocess(df, args.source_tz, args.tz, args.keep_duplicates)
+    if args.mask_uid:
+        df = mask_uids(df)
+        log.info("UID masked in the output file.")
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
