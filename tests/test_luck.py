@@ -12,12 +12,13 @@ def frame(rows):
 
 
 def test_average_luck_is_50_and_win_rate_as_expected():
+    # pity luck = 50 + 50 * (E - pity) / (E - 1), E = 62.5 for a 1.6% banner: it is linear, so a mean pity of E scores 50
     df = frame([
-        ("a", "Character Event", 5, 1, "Win"),      # pity 1  -> 100
-        ("a", "Character Event", 5, 90, "Lose"),    # hard pity -> 0
+        ("a", "Character Event", 5, 35, "Win"),     # E - 27.5 -> 72.4
+        ("a", "Character Event", 5, 90, "Lose"),    # E + 27.5 -> 27.6
     ])
     row = compute_luck(df, GI).iloc[0]
-    assert row["avg_pity_luck"] == 50.0
+    assert row["avg_pity_luck"] == pytest.approx(50.0, abs=0.05)
     assert row["win_rate_5star_pct"] == 50.0 and row["expected_win_rate_pct"] == 50.0
     assert row["win_rate_luck"] == 50.0
     assert row["luck_score"] == 50.0
@@ -27,7 +28,14 @@ def test_weapon_event_expects_75_percent():
     df = frame([("a", "Weapon Event", 5, 40, "Win")])
     row = compute_luck(df, GI).iloc[0]
     assert row["expected_win_rate_pct"] == 75.0
-    assert row["win_rate_luck"] == pytest.approx(66.7, abs=0.05)
+    assert row["win_rate_luck"] == 100.0            # every 50-50 won -> 100
+
+
+def test_win_rate_luck_is_50_at_the_official_rate():
+    df = frame([("a", "Weapon Event", 5, 40, w) for w in ("Win", "Win", "Win", "Lose")])   # 75% = official weapon chance
+    row = compute_luck(df, GI).iloc[0]
+    assert row["win_rate_5star_pct"] == 75.0
+    assert row["win_rate_luck"] == pytest.approx(50.0, abs=0.05)
 
 
 def test_guaranteed_pulls_do_not_count_as_a_50_50():

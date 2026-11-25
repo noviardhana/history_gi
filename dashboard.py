@@ -44,7 +44,7 @@ from components import block_label, chart_note, badge, kpi_card
 
 from pipeline.luck import compute_luck
 from analytics.data_loader import load_data as load_normalized_data
-from analytics.metrics import current_pity as metric_current_pity, rateup_stats as metric_rateup_stats, build_summary_stats as metric_summary_stats, overall_luck as metric_overall_luck
+from analytics.metrics import build_summary_stats as metric_summary_stats, current_pity, overall_luck
 from analytics.filters import apply_filters, filter_accounts, filter_banners
 from charts import _monthly_star_chart, _kde
 from insights import section_header, chart_meaning
@@ -62,7 +62,6 @@ DEFAULT_DATA = {
     "GI": _first_existing(BASE_DIR / "data_clean_gi.csv", BASE_DIR / "data_clean.csv", default_clean_csv("GI")),
     "HSR": _first_existing(BASE_DIR / "data_clean_hsr.csv", HSR_CLEAN),
 }
-PREPROCESS_HINT = {"GI": "python -m pipeline preprocess --games gi", "HSR": "python -m pipeline preprocess --games hsr"}
 
 # ----------------------------------------------------------------------------
 # Design tokens — dark navy theme matching .streamlit/config.toml
@@ -84,8 +83,7 @@ ACCENT_TEAL = "#55c2b2"
 SUCCESS = "#54c78b"
 DANGER = "#ff7777"
 
-FONT_DISPLAY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-FONT_BODY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONT_DISPLAY = FONT_BODY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
 FONT_MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
 RARITY_COLORS = {3: ACCENT_BLUE, 4: ACCENT_PURPLE, 5: ACCENT_GOLD}
@@ -106,6 +104,14 @@ def _version() -> tuple:
 
 # `use_container_width` was replaced by `width="stretch"` in newer Streamlit releases.
 STRETCH = {"width": "stretch"} if _version() >= (1, 50) else {"use_container_width": True}
+
+
+def html_md(body: str):
+    st.markdown(body, unsafe_allow_html=True)
+
+
+def html_sidebar(body: str):
+    st.sidebar.markdown(body, unsafe_allow_html=True)
 
 st.set_page_config(
     page_title="Gacha Analytics",
@@ -130,8 +136,7 @@ pio.templates.default = "gacha_clean"
 # ----------------------------------------------------------------------------
 # Global styling
 # ----------------------------------------------------------------------------
-st.markdown(
-    f"""
+html_md(f"""
     <style>
     :root {{ color-scheme: dark; }}
     html, body, [class*="css"] {{ font-family: {FONT_BODY}; color: {TEXT_PRIMARY}; }}
@@ -228,9 +233,7 @@ st.markdown(
     @media (max-width: 900px) {{ .block-container {{ padding: 1rem 1rem 1.8rem; }} .gx-hero {{ padding: 0.95rem 1rem; }} .gx-appbar {{ align-items: flex-start; flex-direction: column; }} }}
     @media (max-width: 600px) {{ .block-container {{ padding: 0.75rem 0.6rem 1.35rem; }} .gx-chip {{ font-size: 0.63rem; }} .gx-section {{ gap: 0.3rem; }} .gx-section-subtitle {{ width: 100%; margin-left: 0; }} }}
     </style>
-    """,
-    unsafe_allow_html=True,
-)
+    """)
 
 
 # ============================================================================
@@ -240,14 +243,91 @@ st.markdown(
 def show(fig, k: str, name: str):
     """Render a Plotly figure and a short English guide, with a unique chart key."""
     st.plotly_chart(fig, key=f"{k}_{name}", **STRETCH)
-    st.markdown(
-        f'<div class="gx-chart-guide"><b>What it shows:</b> {html.escape(chart_meaning(name))}</div>',
-        unsafe_allow_html=True,
-    )
+    html_md(f'<div class="gx-chart-guide"><b>What it shows:</b> {html.escape(chart_meaning(name))}</div>')
 
 
 def show_df(data, **kwargs):
     st.dataframe(data, hide_index=True, **STRETCH, **kwargs)
+
+
+def data_details(data, **kwargs):
+    with st.expander("Data Details"):
+        show_df(data, **kwargs)
+
+
+def cols_grid(items, per_row: int = 3):
+    """Yield (column, item) pairs, `per_row` columns per row."""
+    items = list(items)
+    for i in range(0, len(items), per_row):
+        yield from zip(st.columns(per_row), items[i:i + per_row])
+
+
+def mean_vline(fig, mean):
+    fig.add_vline(x=mean, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text=f"mean {mean:.1f}",
+                  annotation_font_color=TEXT_SECONDARY, annotation_position="top left")
+
+
+def pity_vlines(fig, hard, reach, soft=None):
+    """Dashed soft-pity and dotted hard-pity markers, only when they fall inside the plotted range."""
+    if soft and soft <= reach:
+        fig.add_vline(x=soft, line_dash="dash", line_color=TEXT_PRIMARY, annotation_text=f"soft {soft}",
+                      annotation_font_color=TEXT_SECONDARY, annotation_position="top left")
+    if hard <= reach:
+        fig.add_vline(x=hard, line_dash="dot", line_color=TEXT_MUTED, annotation_text=f"hard {hard}",
+                      annotation_font_color=TEXT_MUTED, annotation_position="top right")
+
+
+def tick_marker(name, symbol="line-ns", size=26, **xy):
+    """A short tick drawn over a bar (expected value / official rate)."""
+    return go.Scatter(mode="markers", name=name, **xy,
+                      marker=dict(symbol=symbol, size=size, line=dict(width=3, color=TEXT_PRIMARY)))
+
+
+def banner_color(cfg: GameConfig, banner: str) -> str:
+    return cfg.banner_colors.get(banner, "#999999")
+
+
+def banners_in(cfg: GameConfig, df: pd.DataFrame) -> list:
+    """Banners present in `df`, in the game's canonical order."""
+    return order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+
+
+def pull_limit(cfg: GameConfig, banner: str):
+    return (getattr(cfg, "pull_limit", None) or {}).get(banner)
+
+
+PULL_COLUMNS = {"datetime": "Date", "account": "Account", "item_name": "Name", "item_category": "Type",
+                "banner_type": "Banner", "pity": "Pity", "win_50_50": "Result"}
+
+
+def _pull_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Display copy of a pull list: readable names, date as text, title-cased type, N/A result."""
+    v = df.rename(columns=PULL_COLUMNS)
+    v["Date"] = v["Date"].dt.strftime("%Y-%m-%d %H:%M")
+    if "Banner" in v:
+        v["Banner"] = v["Banner"].astype(str)
+    v["Type"] = v["Type"].str.replace("_", " ").str.title()
+    v["Result"] = v["Result"].fillna("N/A")
+    return v
+
+
+def _lvl(v) -> str:
+    return f"{int(v)}" if pd.notna(v) else "-"
+
+
+def _account_card(title: str, rows: pd.DataFrame, cells):
+    """Text-only card with one row per account; `cells(row)` -> [(label, value[, css class[, style attr]])]."""
+    def stat(label, value, cls="", style=""):
+        return (f'<div><div class="gx-card-sublabel">{label}</div>'
+                f'<div class="gx-card-value{cls}"{style}>{value}</div></div>')
+
+    body = '<div class="gx-card-divider"></div>'.join(
+        '<div class="gx-card-row">'
+        f'<div class="gx-card-label"><b style="color:{TEXT_PRIMARY}; font-size:0.95rem;">{html.escape(str(r["account"]))}</b></div>'
+        '<div style="display:flex; gap:1.8rem; text-align:right;">'
+        + "".join(stat(*c) for c in cells(r)) + '</div></div>'
+        for _, r in rows.iterrows())
+    html_md(f'<div class="gx-card"><div class="gx-card-title">{title}</div>{body}</div>')
 
 
 def apply_layout(fig, title, xaxis_title=None, yaxis_title=None, height=380, legend=False, yaxis_range=None, **extra):
@@ -297,7 +377,12 @@ def style_result_column(df: pd.DataFrame, column: str = "Result"):
 
 def pull_plural(word: str) -> str:
     """Return a readable plural for the game's pull noun (Wish -> Wishes, Warp -> Warps)."""
-    return "Wishes" if word.lower() == "wish" else (word + "es" if word.lower().endswith(("s", "sh", "ch", "x", "z")) else word + "s")
+    w = word.lower()
+    return "Wishes" if w == "wish" else word + ("es" if w.endswith(("s", "sh", "ch", "x", "z")) else "s")
+
+
+def plural_lc(word: str) -> str:
+    return pull_plural(word).lower()
 
 
 def order_banners(cfg: GameConfig, items) -> list:
@@ -308,8 +393,7 @@ def order_banners(cfg: GameConfig, items) -> list:
 
 def pity_reach(cfg: GameConfig, banner: str) -> int:
     """Highest pity a banner can show: hard pity, or the banner's pull limit when that is lower (Beginners)."""
-    hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
-    limit = (getattr(cfg, "pull_limit", None) or {}).get(banner)
+    hard, limit = cfg.hard_pity.get(banner, cfg.default_hard_pity), pull_limit(cfg, banner)
     return min(hard, limit) if limit else hard
 
 
@@ -327,20 +411,11 @@ def account_order(df: pd.DataFrame) -> list:
     return [main] + sorted(a for a in df["account"].unique() if a != main)
 
 
-def current_pity(df: pd.DataFrame, banner: str, star: int = 5):
-    """Pity count from the supplied unfiltered account history."""
-    return metric_current_pity(df, banner, star)
-
-
 def luck_table(df: pd.DataFrame, cfg: GameConfig) -> pd.DataFrame:
     """Luck Score per account using the shared formula from pipeline/luck.py."""
     d = df.copy()
     d["banner_type"] = d["banner_type"].astype(object)
     return compute_luck(d, cfg)
-
-
-def overall_luck(df: pd.DataFrame, cfg: GameConfig):
-    return metric_overall_luck(df, cfg)
 
 
 def luck_verdict(score: float):
@@ -351,10 +426,6 @@ def luck_verdict(score: float):
     if score >= 45:
         return "About average", ACCENT_GOLD
     return "Below average", DANGER
-
-
-def rateup_stats(df: pd.DataFrame, cfg: GameConfig):
-    return metric_rateup_stats(df, cfg)
 
 
 def build_summary_stats(df: pd.DataFrame, cfg: GameConfig) -> dict:
@@ -368,24 +439,21 @@ def build_summary_stats(df: pd.DataFrame, cfg: GameConfig) -> dict:
 # ============================================================================
 def render_hero(cfg: GameConfig, title: str, subtitle: str, chips: list):
     chips_html = "".join(f'<span class="gx-chip">{html.escape(str(c))}</span>' for c in chips)
-    st.markdown(
-        f"""
+    html_md(f"""
         <div class="gx-hero">
             <div class="gx-hero-eyebrow">{cfg.title} · {cfg.pull_word} Analytics</div>
             <div class="gx-hero-title">{html.escape(title)}</div>
             <div class="gx-hero-subtitle">{html.escape(subtitle)}</div>
             <div class="gx-hero-chips">{chips_html}</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """)
 
 
 def render_key_parameters(cfg: GameConfig, stats: dict):
     w = cfg.pull_word
     cards = [kpi_card(f"Total {pull_plural(w)}", f"{stats['total']:,}", f"≈ {stats['total'] * cfg.pull_cost:,} {cfg.currency}")]
 
-    per5 = f"1 per {stats['per_5']:.1f} {pull_plural(w).lower()}" if stats["per_5"] else "no 5★ yet"
+    per5 = f"1 per {stats['per_5']:.1f} {plural_lc(w)}" if stats["per_5"] else "no 5★ yet"
     cards.append(kpi_card("5★ Obtained", f"{stats['n5']:,}", f"{per5} · 4★: {stats['n4']:,}"))
 
     avg = f"{stats['avg_pity_5']:.1f}" if stats["avg_pity_5"] is not None else "-"
@@ -419,7 +487,7 @@ def render_key_parameters(cfg: GameConfig, stats: dict):
     for row_cards in (cards[:3], cards[3:]):
         for col, card in zip(st.columns(3), row_cards):
             with col:
-                st.markdown(card, unsafe_allow_html=True)
+                html_md(card)
 
 
 def render_pity_cards(df: pd.DataFrame, cfg: GameConfig):
@@ -430,49 +498,44 @@ def render_pity_cards(df: pd.DataFrame, cfg: GameConfig):
         st.info("No banner with a pity meter in this data (e.g. Beginners banners have none).")
         return
     per_row = 2 if len(banners) == 4 else 3   # 4 banners -> 2x2 grid instead of 3+1
-    for i in range(0, len(banners), per_row):
-        cols = st.columns(per_row)
-        for col, banner in zip(cols, banners[i:i + per_row]):
-            lifetime = int((df["banner_type"] == banner).sum())
-            p5, p4 = current_pity(df, banner, 5), current_pity(df, banner, 4)
-            hard5 = cfg.hard_pity.get(banner, cfg.default_hard_pity)
-            hard4 = cfg.hard_pity_4
-            soft5 = cfg.soft_pity.get(banner)
-            pct5 = min(100, round((p5 or 0) / hard5 * 100)) if p5 is not None else 0
-            pct4 = min(100, round((p4 or 0) / hard4 * 100)) if p4 is not None else 0
-            in_soft = soft5 is not None and p5 is not None and p5 >= soft5
-            bar5 = DANGER if in_soft else ACCENT_GOLD
-            soft_txt = f" · soft pity from {soft5}" if soft5 else ""
-            limit = (getattr(cfg, "pull_limit", None) or {}).get(banner)
-            soft_txt += f" · {limit}-pull limit" if limit else ""
-            top = cfg.banner_colors.get(banner, ACCENT_GOLD)
-            with col:
-                st.markdown(
-                    f"""
-                    <div class="gx-card" style="border-top:3px solid {top};">
-                        <div class="gx-card-title">{banner}</div>
-                        <div class="gx-card-row">
-                            <div class="gx-card-label">Lifetime {pull_plural(cfg.pull_word)}</div>
-                            <div class="gx-card-value">{lifetime:,}</div>
-                        </div>
-                        <div class="gx-card-divider"></div>
-                        <div class="gx-card-row">
-                            <div class="gx-card-label">5★ Pity<br>
-                                <span class="gx-card-sublabel">Hard pity {hard5}{soft_txt}</span></div>
-                            <div class="gx-card-value gx-gold">{p5 if p5 is not None else '-'}</div>
-                        </div>
-                        <div class="pity-bar-track"><div class="pity-bar-fill" style="width:{pct5}%; background:{bar5};"></div></div>
-                        <div class="gx-card-divider"></div>
-                        <div class="gx-card-row">
-                            <div class="gx-card-label">4★ Pity<br>
-                                <span class="gx-card-sublabel">Guaranteed at {hard4}</span></div>
-                            <div class="gx-card-value gx-purple">{p4 if p4 is not None else '-'}</div>
-                        </div>
-                        <div class="pity-bar-track"><div class="pity-bar-fill" style="width:{pct4}%; background:{ACCENT_PURPLE};"></div></div>
+    for col, banner in cols_grid(banners, per_row):
+        lifetime = int((df["banner_type"] == banner).sum())
+        p5, p4 = current_pity(df, banner, 5), current_pity(df, banner, 4)
+        hard5 = cfg.hard_pity.get(banner, cfg.default_hard_pity)
+        hard4 = cfg.hard_pity_4
+        soft5 = cfg.soft_pity.get(banner)
+        pct5 = min(100, round((p5 or 0) / hard5 * 100)) if p5 is not None else 0
+        pct4 = min(100, round((p4 or 0) / hard4 * 100)) if p4 is not None else 0
+        in_soft = soft5 is not None and p5 is not None and p5 >= soft5
+        bar5 = DANGER if in_soft else ACCENT_GOLD
+        soft_txt = f" · soft pity from {soft5}" if soft5 else ""
+        limit = pull_limit(cfg, banner)
+        soft_txt += f" · {limit}-pull limit" if limit else ""
+        top = cfg.banner_colors.get(banner, ACCENT_GOLD)
+        with col:
+            html_md(f"""
+                <div class="gx-card" style="border-top:3px solid {top};">
+                    <div class="gx-card-title">{banner}</div>
+                    <div class="gx-card-row">
+                        <div class="gx-card-label">Lifetime {pull_plural(cfg.pull_word)}</div>
+                        <div class="gx-card-value">{lifetime:,}</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    <div class="gx-card-divider"></div>
+                    <div class="gx-card-row">
+                        <div class="gx-card-label">5★ Pity<br>
+                            <span class="gx-card-sublabel">Hard pity {hard5}{soft_txt}</span></div>
+                        <div class="gx-card-value gx-gold">{p5 if p5 is not None else '-'}</div>
+                    </div>
+                    <div class="pity-bar-track"><div class="pity-bar-fill" style="width:{pct5}%; background:{bar5};"></div></div>
+                    <div class="gx-card-divider"></div>
+                    <div class="gx-card-row">
+                        <div class="gx-card-label">4★ Pity<br>
+                            <span class="gx-card-sublabel">Guaranteed at {hard4}</span></div>
+                        <div class="gx-card-value gx-purple">{p4 if p4 is not None else '-'}</div>
+                    </div>
+                    <div class="pity-bar-track"><div class="pity-bar-fill" style="width:{pct4}%; background:{ACCENT_PURPLE};"></div></div>
+                </div>
+                """)
 
 
 def render_pity_section(df: pd.DataFrame, cfg: GameConfig):
@@ -490,7 +553,7 @@ def render_pity_section(df: pd.DataFrame, cfg: GameConfig):
 def render_executive_summary(df: pd.DataFrame, cfg: GameConfig, stats: dict, single_account: bool, pity_history: pd.DataFrame | None = None):
     items = []
     start, end = df["datetime"].min().strftime("%b %Y"), df["datetime"].max().strftime("%b %Y")
-    overall = f"<b>Period:</b> {start} – {end} · 5★ rate {stats['rate_5']:.2f}% ({stats['n5']} of {stats['total']:,} {pull_plural(cfg.pull_word).lower()})"
+    overall = f"<b>Period:</b> {start} – {end} · 5★ rate {stats['rate_5']:.2f}% ({stats['n5']} of {stats['total']:,} {plural_lc(cfg.pull_word)})"
     if stats["avg_pity_5"] is not None:
         overall += f" · avg 5★ pity {stats['avg_pity_5']:.1f}"
     items.append(overall + ".")
@@ -512,13 +575,13 @@ def render_executive_summary(df: pd.DataFrame, cfg: GameConfig, stats: dict, sin
         best, worst = ppf.idxmin(), ppf.idxmax()
         if best != worst:
             items.append(
-                f"<b>Banner efficiency:</b> {best} is the most efficient ({ppf[best]:.1f} {pull_plural(cfg.pull_word).lower()} per 5★), "
+                f"<b>Banner efficiency:</b> {best} is the most efficient ({ppf[best]:.1f} {plural_lc(cfg.pull_word)} per 5★), "
                 f"{worst} the least ({ppf[worst]:.1f}); banners with fewer than {MIN_5STAR_COMPARE} 5★ are not compared."
             )
 
     monthly = df.groupby("year_month").size()
     items.append(
-        f"<b>Activity:</b> busiest month was {monthly.idxmax()} ({monthly.max():,} {pull_plural(cfg.pull_word).lower()}); "
+        f"<b>Activity:</b> busiest month was {monthly.idxmax()} ({monthly.max():,} {plural_lc(cfg.pull_word)}); "
         f"latest {cfg.pull_word.lower()} on {df['datetime'].max():%Y-%m-%d}."
     )
 
@@ -541,7 +604,7 @@ def render_executive_summary(df: pd.DataFrame, cfg: GameConfig, stats: dict, sin
 
     body = "".join(f"<li>{item}</li>" for item in items)
     with st.expander("Executive Summary", expanded=True):
-        st.markdown(f'<ul class="summary-list">{body}</ul>', unsafe_allow_html=True)
+        html_md(f'<ul class="summary-list">{body}</ul>')
 
 
 # ============================================================================
@@ -559,7 +622,7 @@ def account_filter(df: pd.DataFrame, k: str, key: str, all_label: str = "All", a
 
 def banner_filter_radio(df: pd.DataFrame, cfg: GameConfig, k: str, key: str, all_label: str = "All"):
     """Single-banner selector for a tab. Returns (filtered df, chosen banner or None for all)."""
-    banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    banners = banners_in(cfg, df)
     if len(banners) <= 1:
         return df, (banners[0] if banners else None)
     choice = st.radio("Banner", [all_label] + banners, horizontal=True, key=f"{k}_bannerfilter_{key}")
@@ -570,7 +633,7 @@ def banner_filter_radio(df: pd.DataFrame, cfg: GameConfig, k: str, key: str, all
 
 def insight_total_pull(df, cfg, k):
     w = cfg.pull_word
-    section_header("Total Pulls & Account Progress", f"Rarity breakdown per account")
+    section_header("Total Pulls & Account Progress", "Rarity breakdown per account")
     summary = (
         df.groupby("account")
         .agg(
@@ -587,14 +650,14 @@ def insight_total_pull(df, cfg, k):
     with col1:
         # 100% stacked: compares rarity mix without the largest account flattening the others.
         ranked = summary.sort_values("total_pull", ascending=False)
-        labels = [f"{a}<br>{int(t):,} {pull_plural(w).lower()}" for a, t in zip(ranked["account"], ranked["total_pull"])]
+        labels = [f"{a}<br>{int(t):,} {plural_lc(w)}" for a, t in zip(ranked["account"], ranked["total_pull"])]
         fig = go.Figure()
         for r in (3, 4, 5):
             share = ranked[f"pull_{r}star"] / ranked["total_pull"] * 100
             fig.add_trace(go.Bar(
                 y=labels, x=share, orientation="h", name=f"{r}★", marker_color=RARITY_COLORS[r],
                 customdata=ranked[f"pull_{r}star"],
-                hovertemplate=f"{r}★: %{{x:.2f}}% (%{{customdata:,}} {pull_plural(w).lower()})<extra></extra>",
+                hovertemplate=f"{r}★: %{{x:.2f}}% (%{{customdata:,}} {plural_lc(w)})<extra></extra>",
             ))
         apply_layout(fig, f"{w} Rarity Mix per Account (100%)", "Share of total (%)", None,
                      barmode="stack", legend=True, height=380)
@@ -603,68 +666,39 @@ def insight_total_pull(df, cfg, k):
         show(fig, k, "total_pull")
         top = summary.sort_values("total_pull", ascending=False).iloc[0]
         if len(summary) > 1:
-            chart_note(f"<b>{html.escape(str(top['account']))}</b> has the most {pull_plural(w).lower()} ({int(top['total_pull']):,}). "
+            chart_note(f"<b>{html.escape(str(top['account']))}</b> has the most {plural_lc(w)} ({int(top['total_pull']):,}). "
                        f"5★ share ranges from {summary['pct_5star'].min():.2f}% to {summary['pct_5star'].max():.2f}%.")
         else:
-            chart_note(f"{int(top['total_pull']):,} {pull_plural(w).lower()}: {int(top['pull_5star'])} five-star ({top['pct_5star']:.2f}%), "
+            chart_note(f"{int(top['total_pull']):,} {plural_lc(w)}: {int(top['pull_5star'])} five-star ({top['pct_5star']:.2f}%), "
                        f"{int(top['pull_4star'])} four-star, {int(top['pull_3star'])} three-star.")
 
     with col2:
-        has_progress = summary["adventure_rank"].notna().any()
-        fig = go.Figure()
-        if has_progress:
-            def _lvl(v):
-                return f"{int(v)}" if pd.notna(v) else "-"
-
-            prog_rows = [
-                '<div class="gx-card-row">'
-                f'<div class="gx-card-label"><b style="color:{TEXT_PRIMARY}; font-size:0.95rem;">{html.escape(str(r["account"]))}</b></div>'
-                '<div style="display:flex; gap:1.8rem; text-align:right;">'
-                f'<div><div class="gx-card-sublabel">Adventure Rank</div><div class="gx-card-value gx-gold">{_lvl(r["adventure_rank"])}</div></div>'
-                f'<div><div class="gx-card-sublabel">World Level</div><div class="gx-card-value" style="color:{ACCENT_BLUE};">{_lvl(r["world_level"])}</div></div>'
-                '</div></div>'
-                for _, r in summary.sort_values("adventure_rank", ascending=False).iterrows()
-            ]
-            st.markdown(
-                '<div class="gx-card"><div class="gx-card-title">Account Progress</div>'
-                + '<div class="gx-card-divider"></div>'.join(prog_rows) + '</div>',
-                unsafe_allow_html=True,
-            )
+        if summary["adventure_rank"].notna().any():
+            _account_card("Account Progress", summary.sort_values("adventure_rank", ascending=False), lambda r: [
+                ("Adventure Rank", _lvl(r["adventure_rank"]), " gx-gold"),
+                ("World Level", _lvl(r["world_level"]), "", f' style="color:{ACCENT_BLUE};"'),
+            ])
             ar = summary.dropna(subset=["adventure_rank"]).sort_values("adventure_rank", ascending=False).iloc[0]
             wl = f" (World Level {int(ar['world_level'])})" if pd.notna(ar["world_level"]) else ""
             chart_note(f"Progression context only: highest Adventure Rank is {int(ar['adventure_rank'])}{wl} on "
                        f"<b>{html.escape(str(ar['account']))}</b>. It shows how far an account has advanced, not how lucky it was.")
         else:
             # No account level data in this export: same text-only card, showing observed rates instead.
-            def _per5(r):
-                return f"{r['total_pull'] / r['pull_5star']:.1f}" if r["pull_5star"] else "-"
-
-            sum_rows = [
-                '<div class="gx-card-row">'
-                f'<div class="gx-card-label"><b style="color:{TEXT_PRIMARY}; font-size:0.95rem;">{html.escape(str(r["account"]))}</b></div>'
-                '<div style="display:flex; gap:1.8rem; text-align:right;">'
-                f'<div><div class="gx-card-sublabel">5★ rate</div><div class="gx-card-value gx-gold">{r["pct_5star"]:.2f}%</div></div>'
-                f'<div><div class="gx-card-sublabel">4★ rate</div><div class="gx-card-value gx-purple">{r["pct_4star"]:.2f}%</div></div>'
-                f'<div><div class="gx-card-sublabel">{pull_plural(w)} per 5★</div><div class="gx-card-value">{_per5(r)}</div></div>'
-                '</div></div>'
-                for _, r in summary.sort_values("total_pull", ascending=False).iterrows()
-            ]
-            st.markdown(
-                '<div class="gx-card"><div class="gx-card-title">Account Summary</div>'
-                + '<div class="gx-card-divider"></div>'.join(sum_rows) + '</div>',
-                unsafe_allow_html=True,
-            )
+            _account_card("Account Summary", summary.sort_values("total_pull", ascending=False), lambda r: [
+                ("5★ rate", f"{r['pct_5star']:.2f}%", " gx-gold"),
+                ("4★ rate", f"{r['pct_4star']:.2f}%", " gx-purple"),
+                (f"{pull_plural(w)} per 5★", f"{r['total_pull'] / r['pull_5star']:.1f}" if r["pull_5star"] else "-"),
+            ])
             chart_note(f"{cfg.title} exports contain no account level data (no rank or level), so this shows the observed 5★ and 4★ "
-                       f"rate per account instead (base rates are about 0.6% for 5★ and 5.1% for 4★).")
+                       "rate per account instead (base rates are about 0.6% for 5★ and 5.1% for 4★).")
 
-    with st.expander("Data Details"):
-        show_df(summary)
+    data_details(summary)
 
 
 def _monthly_star_counts(df, cfg, star: int) -> pd.DataFrame:
     """Months x banners table with the number of `star`★ obtained (every month in range, zeros filled)."""
     months = pd.period_range(df["datetime"].min(), df["datetime"].max(), freq="M").astype(str)
-    banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    banners = banners_in(cfg, df)
     d = df[df["rarity"] == star]
     if d.empty:
         return pd.DataFrame(0, index=months, columns=banners)
@@ -677,7 +711,7 @@ def insight_timeline(df, cfg, k):
     section_header(f"{w} Timeline", f"Monthly {w.lower()} volume and 5★ / 4★ obtained, by banner and account")
     df = account_filter(df, k, "timeline", all_label="Total")
     # The totals are recomputed from the banners picked here.
-    all_banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    all_banners = banners_in(cfg, df)
     shown = st.multiselect("Banners shown", all_banners, default=all_banners)
     if not shown:
         st.warning("Select at least one banner.")
@@ -691,12 +725,12 @@ def insight_timeline(df, cfg, k):
 
     fig = go.Figure()
     for banner in pivot.columns:
-        fig.add_trace(go.Bar(x=pivot.index, y=pivot[banner], name=banner, marker_color=cfg.banner_colors.get(banner, "#999999")))
+        fig.add_trace(go.Bar(x=pivot.index, y=pivot[banner], name=banner, marker_color=banner_color(cfg, banner)))
     total = pivot.sum(axis=1)
     fig.add_trace(go.Scatter(x=total.index, y=total.values, mode="text", text=[f"{int(v):,}" if v else "" for v in total.values],
                              textposition="top center", textfont=dict(color=TEXT_PRIMARY, size=11),
                              showlegend=False, hoverinfo="skip", cliponaxis=False))
-    apply_layout(fig, f"Monthly {pull_plural(w)} by Banner", "Month", f"{pull_plural(w)}", height=460, barmode="stack", hovermode="x unified", legend=True)
+    apply_layout(fig, f"Monthly {pull_plural(w)} by Banner", "Month", pull_plural(w), height=460, barmode="stack", hovermode="x unified", legend=True)
     fig.update_yaxes(range=[0, total.max() * 1.15])
     # Legend clicks would hide bars without updating the totals, so selection is done with the selector above.
     fig.update_layout(legend_itemclick=False, legend_itemdoubleclick=False)
@@ -704,8 +738,8 @@ def insight_timeline(df, cfg, k):
     top_banner = pivot.sum().idxmax()
     share = pivot[top_banner].sum() / pivot.values.sum() * 100
     active = total[total > 0]
-    chart_note(f"Busiest month: <b>{total.idxmax()}</b> ({int(total.max()):,} {pull_plural(w).lower()}); average {active.mean():.0f} per active month. "
-               f"{top_banner} makes up {share:.0f}% of all {pull_plural(w).lower()}.")
+    chart_note(f"Busiest month: <b>{total.idxmax()}</b> ({int(total.max()):,} {plural_lc(w)}); average {active.mean():.0f} per active month. "
+               f"{top_banner} makes up {share:.0f}% of all {plural_lc(w)}.")
 
     # ---- 5★ and 4★ obtained per month: per banner and total ----------------------
     block_label("5★ and 4★ obtained per month")
@@ -723,8 +757,7 @@ def insight_timeline(df, cfg, k):
     table = table.astype(int).rename_axis("Month").reset_index()
     with st.expander("Monthly table: total and per banner", expanded=True):
         show_df(table, height=min(38 * (len(table) + 1), 520))
-    with st.expander("Data Details"):
-        show_df(timeline)
+    data_details(timeline)
 
 
 def insight_pity_distribution(df, cfg, k):
@@ -736,33 +769,26 @@ def insight_pity_distribution(df, cfg, k):
     banners = order_banners(cfg, five["banner_type"].dropna().unique())
     banners = [b for b in banners if (five["banner_type"] == b).any()]
     block_label("Histogram + density curve")
-    for i in range(0, len(banners), 3):
-        cols = st.columns(3)
-        for col, banner in zip(cols, banners[i:i + 3]):
-            vals = five.loc[five["banner_type"] == banner, "pity"].dropna()
-            if vals.empty:
-                continue
-            hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
-            reach = pity_reach(cfg, banner)
-            with col:
-                fig = go.Figure(go.Histogram(x=vals, xbins=dict(start=0, end=reach + 5, size=5),
-                                             histnorm="probability density", opacity=0.85,
-                                             marker_color=cfg.banner_colors.get(banner, "#999999"), name=banner))
-                grid = np.linspace(0, reach + 5, 300)
-                dens = _kde(vals, grid)
-                if dens is not None:
-                    fig.add_trace(go.Scatter(x=grid, y=dens, mode="lines", name="Density",
-                                             line=dict(color=TEXT_PRIMARY, width=2.2), hoverinfo="skip"))
-                fig.add_vline(x=vals.mean(), line_dash="dash", line_color=TEXT_PRIMARY,
-                              annotation_text=f"mean {vals.mean():.1f}", annotation_font_color=TEXT_SECONDARY,
-                              annotation_position="top left")
-                if hard <= reach:
-                    fig.add_vline(x=hard, line_dash="dot", line_color=TEXT_MUTED,
-                                  annotation_text=f"hard {hard}", annotation_font_color=TEXT_MUTED,
-                                  annotation_position="top right")
-                apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 5★", "Density", height=330, bargap=0.05)
-                fig.update_xaxes(range=[0, reach + 5])
-                show(fig, k, f"pity_{banner}")
+    for col, banner in cols_grid(banners):
+        vals = five.loc[five["banner_type"] == banner, "pity"].dropna()
+        if vals.empty:
+            continue
+        hard = cfg.hard_pity.get(banner, cfg.default_hard_pity)
+        reach = pity_reach(cfg, banner)
+        with col:
+            fig = go.Figure(go.Histogram(x=vals, xbins=dict(start=0, end=reach + 5, size=5),
+                                         histnorm="probability density", opacity=0.85,
+                                         marker_color=banner_color(cfg, banner), name=banner))
+            grid = np.linspace(0, reach + 5, 300)
+            dens = _kde(vals, grid)
+            if dens is not None:
+                fig.add_trace(go.Scatter(x=grid, y=dens, mode="lines", name="Density",
+                                         line=dict(color=TEXT_PRIMARY, width=2.2), hoverinfo="skip"))
+            mean_vline(fig, vals.mean())
+            pity_vlines(fig, hard, reach)
+            apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 5★", "Density", height=330, bargap=0.05)
+            fig.update_xaxes(range=[0, reach + 5])
+            show(fig, k, f"pity_{banner}")
     avgs = five.groupby("banner_type", observed=True)["pity"].mean()
     avg_txt = " · ".join(f"{b} <b>{avgs[b]:.1f}</b>" for b in banners if b in avgs.index and pd.notna(avgs[b]))
     softs = ", ".join(f"{b} {cfg.soft_pity[b]}" for b in banners if b in cfg.soft_pity)
@@ -780,7 +806,7 @@ def insight_pity_distribution(df, cfg, k):
         x = np.concatenate([[0], vals, [max(hard, vals.max())]])
         y = np.concatenate([[0], np.arange(1, len(vals) + 1) / len(vals) * 100, [100]])
         fig.add_trace(go.Scatter(
-            x=x, y=y, mode="lines", name=f"{banner} (n={len(vals)})", line=dict(shape="hv", width=2.4, color=cfg.banner_colors.get(banner, "#999999")),
+            x=x, y=y, mode="lines", name=f"{banner} (n={len(vals)})", line=dict(shape="hv", width=2.4, color=banner_color(cfg, banner)),
             hovertemplate=f"{banner}: %{{y:.1f}}% of 5★ by pity %{{x:.0f}}<extra></extra>",
         ))
         p50, p90 = np.percentile(vals, [50, 90])
@@ -794,8 +820,7 @@ def insight_pity_distribution(df, cfg, k):
     chart_note("Read it as: by pull X, Y% of your 5★ had already landed. The steeper the curve, the more consistent the pity. "
                + " · ".join(cdf_notes) + ".")
 
-    with st.expander("Data Details"):
-        show_df(five[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]]
+    data_details(five[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]]
                 .astype({"banner_type": str}).sort_values(["banner_type", "datetime"]))
 
 
@@ -851,50 +876,40 @@ def insight_hazard_rate(df, cfg, k):
     # Hazard exposure uses the complete selected-account/banner history. A banner
     # with no observed 5★ still contributes censored pulls to the risk set.
     five = df[df["is_5star"]]
-    banners = order_banners(cfg, df["banner_type"].dropna().astype(str).unique())
+    banners = banners_in(cfg, df)
     if not banners:
         st.warning("No pulls in the current account/banner selection.")
         return
     all_tables = []
-    for i in range(0, len(banners), 3):
-        cols = st.columns(3)
-        for col, banner in zip(cols, banners[i:i + 3]):
-            banner_history = df[df["banner_type"].astype(str).eq(str(banner))]
-            tbl, hard = _hazard_buckets(banner_history, cfg, banner)
-            if tbl.empty or tbl["at_risk"].sum() == 0:
-                continue
-            all_tables.append(tbl)
-            soft = cfg.soft_pity.get(banner)
-            reach = pity_reach(cfg, banner)
-            with col:
-                fig = go.Figure(go.Bar(
-                    x=tbl["mid"], y=tbl["hazard"], width=4.6,
-                    marker=dict(color=cfg.banner_colors.get(banner, "#999999"),
-                                opacity=[0.35 if r < LOW_EXPOSURE else 1 for r in tbl["at_risk"]]),
-                    customdata=np.stack([tbl["lo"], tbl["hi"], tbl["events"], tbl["at_risk"]], axis=-1),
-                    hovertemplate="Pity %{customdata[0]}–%{customdata[1]}: %{y:.1f}%<br>"
-                                  "%{customdata[2]} 5★ from %{customdata[3]} pulls at risk<extra></extra>",
-                ))
-                if soft and soft <= reach:
-                    fig.add_vline(x=soft, line_dash="dash", line_color=TEXT_PRIMARY,
-                                  annotation_text=f"soft {soft}", annotation_font_color=TEXT_SECONDARY,
-                                  annotation_position="top left")
-                if hard <= reach:
-                    fig.add_vline(x=hard, line_dash="dot", line_color=TEXT_MUTED,
-                                  annotation_text=f"hard {hard}", annotation_font_color=TEXT_MUTED,
-                                  annotation_position="top right")
-                top = float(np.nanmax(tbl["hazard"])) if tbl["hazard"].notna().any() else 1.0
-                apply_layout(fig, f"{banner} (n={len(five[five['banner_type'].astype(str) == banner])} 5★)",
-                             "Pity", "5★ chance per pull (%)", height=330, bargap=0.05,
-                             yaxis_range=[0, min(100.0, max(top * 1.2, 1.0))])
-                fig.update_xaxes(range=[0, reach + 3])
-                show(fig, k, f"hazard_{banner}")
+    for col, banner in cols_grid(banners):
+        banner_history = df[df["banner_type"].astype(str).eq(str(banner))]
+        tbl, hard = _hazard_buckets(banner_history, cfg, banner)
+        if tbl.empty or tbl["at_risk"].sum() == 0:
+            continue
+        all_tables.append(tbl)
+        soft = cfg.soft_pity.get(banner)
+        reach = pity_reach(cfg, banner)
+        with col:
+            fig = go.Figure(go.Bar(
+                x=tbl["mid"], y=tbl["hazard"], width=4.6,
+                marker=dict(color=banner_color(cfg, banner),
+                            opacity=[0.35 if r < LOW_EXPOSURE else 1 for r in tbl["at_risk"]]),
+                customdata=np.stack([tbl["lo"], tbl["hi"], tbl["events"], tbl["at_risk"]], axis=-1),
+                hovertemplate="Pity %{customdata[0]}–%{customdata[1]}: %{y:.1f}%<br>"
+                              "%{customdata[2]} 5★ from %{customdata[3]} pulls at risk<extra></extra>",
+            ))
+            pity_vlines(fig, hard, reach, soft)
+            top = float(np.nanmax(tbl["hazard"])) if tbl["hazard"].notna().any() else 1.0
+            apply_layout(fig, f"{banner} (n={len(five[five['banner_type'].astype(str) == banner])} 5★)",
+                         "Pity", "5★ chance per pull (%)", height=330, bargap=0.05,
+                         yaxis_range=[0, min(100.0, max(top * 1.2, 1.0))])
+            fig.update_xaxes(range=[0, reach + 3])
+            show(fig, k, f"hazard_{banner}")
     chart_note(f"Each bar = 5★ obtained ÷ pulls that reached that bucket (your current unfinished streak counts as at risk). "
                f"Before soft pity the official base rate is only about 0.6–0.8%; the climb shows where your 5★ really land. "
                f"Faded bars have fewer than {LOW_EXPOSURE} pulls at risk, so treat them as noisy.")
     if all_tables:
-        with st.expander("Data Details"):
-            show_df(pd.concat(all_tables, ignore_index=True)
+        data_details(pd.concat(all_tables, ignore_index=True)
                     .rename(columns={"lo": "from", "hi": "to", "mid": "mid", "at_risk": "pulls_at_risk", "hazard": "hazard_pct"}))
 
 
@@ -905,28 +920,23 @@ def insight_pity_4(df, cfg, k):
         st.warning("No 4★ pulls in the current selection.")
         return
     hard = cfg.hard_pity_4
-    banners = order_banners(cfg, four["banner_type"].dropna().astype(str).unique())
+    banners = banners_in(cfg, four)
     means = []
-    for i in range(0, len(banners), 3):
-        cols = st.columns(3)
-        for col, banner in zip(cols, banners[i:i + 3]):
-            vals = four.loc[four["banner_type"].astype(str) == banner, "pity"]
-            if vals.empty:
-                continue
-            means.append(f"{banner} <b>{vals.mean():.1f}</b>")
-            with col:
-                fig = go.Figure(go.Histogram(x=vals, xbins=dict(start=0.5, end=hard + 0.5, size=1), histnorm="percent",
-                                             marker_color=cfg.banner_colors.get(banner, "#999999"), name=banner))
-                fig.add_vline(x=vals.mean(), line_dash="dash", line_color=TEXT_PRIMARY,
-                              annotation_text=f"mean {vals.mean():.1f}", annotation_font_color=TEXT_SECONDARY,
-                              annotation_position="top left")
-                apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 4★", "Share of 4★ (%)", height=330, bargap=0.05)
-                fig.update_xaxes(range=[0.5, hard + 0.5], dtick=1)
-                show(fig, k, f"pity4_{banner}")
+    for col, banner in cols_grid(banners):
+        vals = four.loc[four["banner_type"].astype(str) == banner, "pity"]
+        if vals.empty:
+            continue
+        means.append(f"{banner} <b>{vals.mean():.1f}</b>")
+        with col:
+            fig = go.Figure(go.Histogram(x=vals, xbins=dict(start=0.5, end=hard + 0.5, size=1), histnorm="percent",
+                                         marker_color=banner_color(cfg, banner), name=banner))
+            mean_vline(fig, vals.mean())
+            apply_layout(fig, f"{banner} (n={len(vals)})", "Pity at 4★", "Share of 4★ (%)", height=330, bargap=0.05)
+            fig.update_xaxes(range=[0.5, hard + 0.5], dtick=1)
+            show(fig, k, f"pity4_{banner}")
     chart_note(f"Average 4★ pity: {' · '.join(means)}. A 4★ is guaranteed by pull {hard}, so a tall bar at {hard} means many "
                "4★ came from the guarantee rather than the base rate.")
-    with st.expander("Data Details"):
-        show_df(four[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]]
+    data_details(four[["account", "banner_type", "datetime", "item_name", "item_category", "pity", "win_50_50"]]
                 .astype({"banner_type": str}).sort_values(["banner_type", "datetime"]))
 
 
@@ -984,8 +994,7 @@ def insight_pity_timeline(df, cfg, k):
     chart_note(f"{int(cnt.get('Win', 0))} won, {int(cnt.get('Lose', 0))} lost, {int(cnt.get('Guaranteed', 0))} guaranteed, "
                f"{int(cnt.get('N/A', 0))} without a 50-50 (e.g. Standard).{streak} "
                "A Lose is normally followed by a Guaranteed on the next rate-up 5★.")
-    with st.expander("Data Details"):
-        show_df(five[["account", "banner_str", "datetime", "item_name", "pity", "Result"]]
+    data_details(five[["account", "banner_str", "datetime", "item_name", "pity", "Result"]]
                 .rename(columns={"banner_str": "banner_type"}).sort_values("datetime", ascending=False))
 
 
@@ -1004,7 +1013,7 @@ def insight_expected_vs_actual(df, cfg, k):
     if d.empty:
         st.warning("No banner in the current selection has an expected 5★ rate (see expected_rate_5 in pipeline/config.py).")
         return
-    banners = order_banners(cfg, d["banner_type"].dropna().astype(str).unique())
+    banners = banners_in(cfg, d)
     d["expected_cum"] = d["rate"].cumsum()
     d["actual_cum"] = d["is_5star"].astype(int).cumsum()
     daily = d.groupby("date").agg(actual=("actual_cum", "last"), expected=("expected_cum", "last")).reset_index()
@@ -1035,8 +1044,7 @@ def insight_expected_vs_actual(df, cfg, k):
                f"Expected rates used (consolidated, pity included): {rates}. "
                + (f"Left out (no expected rate in pipeline/config.py): {', '.join(skipped)}. " if skipped else "")
                + "A gap of a few 5★ either way is normal variance, not proof of good or bad luck.")
-    with st.expander("Data Details"):
-        show_df(daily)
+    data_details(daily)
 
 
 def insight_rolling_efficiency(df, cfg, k):
@@ -1049,9 +1057,9 @@ def insight_rolling_efficiency(df, cfg, k):
     window = st.slider("Window (number of 5★)", 2, 10, 5, key=f"{k}_rolling_window")
     fig = go.Figure()
     latest, short = [], []
-    for banner in order_banners(cfg, five["banner_type"].dropna().astype(str).unique()):
+    for banner in banners_in(cfg, five):
         s = five[five["banner_type"].astype(str) == banner]
-        color = cfg.banner_colors.get(banner, "#999999")
+        color = banner_color(cfg, banner)
         enough = len(s) >= window
         fig.add_trace(go.Scatter(
             x=s["datetime"], y=s["pity"], mode="markers", name=f"{banner} (each 5★)", legendgroup=banner,
@@ -1079,8 +1087,7 @@ def insight_rolling_efficiency(df, cfg, k):
         txt += f"Not enough 5★ for a window of {window}: {', '.join(short)}. "
     chart_note(txt + "Dots = pity of each 5★, line = moving average, dotted line = expected pulls per 5★ "
                "(1 ÷ official consolidated rate). A line sinking below its dotted line means your recent pulls are efficient.")
-    with st.expander("Data Details"):
-        show_df(five[["account", "banner_type", "datetime", "item_name", "pity"]].astype({"banner_type": str}))
+    data_details(five[["account", "banner_type", "datetime", "item_name", "pity"]].astype({"banner_type": str}))
 
 
 def _winrate_rows(df, cfg):
@@ -1126,14 +1133,12 @@ def insight_win_lose(df, cfg, k):
                              name="Win rate"))
         base = wr.dropna(subset=["baseline"])
         if len(base):
-            fig.add_trace(go.Scatter(x=base["label"], y=base["baseline"], mode="markers", name="Official 5★ rate-up chance",
-                                     marker=dict(symbol="line-ew", size=38, line=dict(width=3, color=TEXT_PRIMARY))))
+            fig.add_trace(tick_marker("Official 5★ rate-up chance", "line-ew", 38, x=base["label"], y=base["baseline"]))
         apply_layout(fig, "Rate-up Win Rate (Win vs Lose)", "Banner & rarity", "Win rate (%)", yaxis_range=[0, 115], legend=True)
         show(fig, k, "wl_rate")
         chart_note(f"The marker is the official 5★ rate-up chance of each banner. Faded bars have fewer than {LOW_SAMPLE} outcomes, "
                    "so treat them as anecdotes. 4★ rows have no official baseline here.")
-    with st.expander("Data Details"):
-        show_df(summary.astype({"banner_type": str}))
+    data_details(summary.astype({"banner_type": str}))
 
 
 def insight_top_items(df, cfg, k, top_n: int = 10):
@@ -1179,9 +1184,9 @@ def insight_banner_performance(df, cfg, k):
     wr = dec.groupby("banner_type")["win_50_50"].agg(n="size", win_rate_5star_pct=lambda s: (s == "Win").mean() * 100).reset_index()
     perf = perf.merge(wr, on="banner_type", how="left")
     perf["baseline_pct"] = pd.to_numeric(perf["banner_type"].map(cfg.rateup_chance), errors="coerce")
-    colors = [cfg.banner_colors.get(b, "#999999") for b in perf["banner_type"]]
+    colors = [banner_color(cfg, b) for b in perf["banner_type"]]
 
-    def hbar(x, title, name, text, xtitle):
+    def hbar(x, title, text, xtitle):
         fig = go.Figure(go.Bar(y=perf["banner_type"], x=x, orientation="h", marker_color=colors, text=text, textposition="outside"))
         apply_layout(fig, title, xtitle, None, height=340)
         fig.update_yaxes(autorange="reversed")
@@ -1189,20 +1194,18 @@ def insight_banner_performance(df, cfg, k):
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        fig = hbar(perf["total_pull"], f"Total {pull_plural(w)}", "total", [f"{v:,}" for v in perf["total_pull"]], f"{pull_plural(w)}")
+        fig = hbar(perf["total_pull"], f"Total {pull_plural(w)}", [f"{v:,}" for v in perf["total_pull"]], pull_plural(w))
         fig.update_xaxes(range=[0, perf["total_pull"].max() * 1.25])
         show(fig, k, "banner_total")
         top = perf.sort_values("total_pull", ascending=False).iloc[0]
-        chart_note(f"<b>{top['banner_type']}</b> takes {top['total_pull'] / perf['total_pull'].sum() * 100:.0f}% of all {pull_plural(w).lower()} ({int(top['total_pull']):,}).")
+        chart_note(f"<b>{top['banner_type']}</b> takes {top['total_pull'] / perf['total_pull'].sum() * 100:.0f}% of all {plural_lc(w)} ({int(top['total_pull']):,}).")
     with col2:
         vals = perf["pull_per_5star"]
-        fig = hbar(vals.fillna(0), "Avg pity per 5★ (lower = better)", "eff",
+        fig = hbar(vals.fillna(0), "Avg pity per 5★ (lower = better)",
                    [f"{v:.1f} (n={int(n)})" if pd.notna(v) else "N/A" for v, n in zip(vals, perf["pull_5star"])], f"{pull_plural(w)} per 5★")
         exp_pts = perf.dropna(subset=["expected_pull_per_5star"])
         if len(exp_pts):
-            fig.add_trace(go.Scatter(y=exp_pts["banner_type"], x=exp_pts["expected_pull_per_5star"], mode="markers",
-                                     name="Expected (1 ÷ rate)",
-                                     marker=dict(symbol="line-ns", size=26, line=dict(width=3, color=TEXT_PRIMARY))))
+            fig.add_trace(tick_marker("Expected (1 ÷ rate)", y=exp_pts["banner_type"], x=exp_pts["expected_pull_per_5star"]))
             fig.update_layout(showlegend=False)
         fig.update_xaxes(range=[0, max(np.nanmax([vals.max(), perf["expected_pull_per_5star"].max()]) * 1.3, 1)])
         show(fig, k, "banner_eff")
@@ -1217,18 +1220,16 @@ def insight_banner_performance(df, cfg, k):
             chart_note(f"Mean pity of the 5★ obtained (unfinished streak excluded). Marker = expected pulls per 5★. Ranking needs at least {MIN_5STAR_COMPARE} 5★ on two banners.")
     with col3:
         vals = perf["win_rate_5star_pct"]
-        fig = hbar(vals.fillna(0), "5★ Rate-up Win Rate", "wr",
+        fig = hbar(vals.fillna(0), "5★ Rate-up Win Rate",
                    [f"{v:.0f}% (n={int(n)})" if pd.notna(v) else "N/A" for v, n in zip(vals, perf["n"].fillna(0))], "Win rate (%)")
         base = perf.dropna(subset=["baseline_pct"])
         if len(base):
-            fig.add_trace(go.Scatter(y=base["banner_type"], x=base["baseline_pct"], mode="markers", name="Official rate-up chance",
-                                     marker=dict(symbol="line-ns", size=26, line=dict(width=3, color=TEXT_PRIMARY))))
+            fig.add_trace(tick_marker("Official rate-up chance", y=base["banner_type"], x=base["baseline_pct"]))
         fig.update_xaxes(range=[0, 125])
         fig.update_layout(showlegend=False)
         show(fig, k, "banner_wr")
         chart_note("Marker = official 5★ rate-up chance. Banners without a rate-up mechanic (Standard, Beginners) show N/A.")
-    with st.expander("Data Details"):
-        show_df(perf)
+    data_details(perf)
 
 
 def insight_luck_score(df, cfg, k):
@@ -1256,8 +1257,7 @@ def insight_luck_score(df, cfg, k):
                        "50 means exactly as expected, above 50 is luckier than the official rates predict.")
     with col2:
         rates = ", ".join(f"{b} {v}%" for b, v in cfg.rateup_chance.items())
-        st.markdown(
-            f"""
+        html_md(f"""
             <div class="gx-card">
                 <div class="gx-card-title">How the score works</div>
                 <p style="color:{TEXT_SECONDARY}; font-size:0.88em; line-height:1.7; margin:0;">
@@ -1274,11 +1274,8 @@ def insight_luck_score(df, cfg, k):
                     {badge("&lt; 45 Below average", DANGER)}
                 </p>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with st.expander("Data Details"):
-        show_df(luck)
+            """)
+    data_details(luck)
 
 
 def insight_latest_5star(df, cfg, k, top_n: int = 10):
@@ -1295,20 +1292,13 @@ def insight_latest_5star(df, cfg, k, top_n: int = 10):
         win, lose = int((b["win_50_50"] == "Win").sum()), int((b["win_50_50"] == "Lose").sum())
         guar = int((b["win_50_50"] == "Guaranteed").sum())
         rate = f"{win / (win + lose) * 100:.0f}% win rate" if win + lose else "no decisive 50-50s"
-        st.markdown(
-            f"""
+        html_md(f"""
             <div class="gx-section" style="margin-top:22px;">
                 <span class="gx-section-title">{banner}</span>
                 <span class="gx-section-subtitle">{badge(f"{win} Win", SUCCESS)}{badge(f"{lose} Lose", DANGER)}{badge(f"{guar} Guaranteed", ACCENT_TEAL)} · {rate}</span>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        latest = b.head(top_n)[["datetime", "item_name", "item_category", "pity", "win_50_50"]].rename(
-            columns={"datetime": "Date", "item_name": "Name", "item_category": "Type", "pity": "Pity", "win_50_50": "Result"})
-        latest["Date"] = latest["Date"].dt.strftime("%Y-%m-%d %H:%M")
-        latest["Type"] = latest["Type"].str.replace("_", " ").str.title()
-        latest["Result"] = latest["Result"].fillna("N/A")
+            """)
+        latest = _pull_table(b.head(top_n)[["datetime", "item_name", "item_category", "pity", "win_50_50"]])
         show_df(style_result_column(latest, "Result"), column_config={"Pity": st.column_config.NumberColumn("Pity", format="%d")})
 
 
@@ -1320,7 +1310,7 @@ def _render_history_table(df, cfg, k, rarity: int):
     rdf = rdf.sort_values(["datetime", "seq"])
     rdf["No."] = rdf.groupby("account").cumcount() + 1
 
-    banner_choices = ["All"] + order_banners(cfg, rdf["banner_type"].dropna().astype(str).unique())
+    banner_choices = ["All"] + banners_in(cfg, rdf)
     type_options = ["All", "Character", cfg.gear_label]
     f1, f2 = st.columns([3, 2])
     with f1:
@@ -1346,13 +1336,7 @@ def _render_history_table(df, cfg, k, rarity: int):
 
     multi = df["account"].nunique() > 1
     cols = ["No.", "datetime"] + (["account"] if multi else []) + ["item_name", "item_category", "banner_type", "pity", "win_50_50"]
-    view = rdf.sort_values(["datetime", "seq"], ascending=False)[cols].rename(columns={
-        "datetime": "Date", "account": "Account", "item_name": "Name", "item_category": "Type",
-        "banner_type": "Banner", "pity": "Pity", "win_50_50": "Result"})
-    view["Date"] = view["Date"].dt.strftime("%Y-%m-%d %H:%M")
-    view["Banner"] = view["Banner"].astype(str)
-    view["Type"] = view["Type"].str.replace("_", " ").str.title()
-    view["Result"] = view["Result"].fillna("N/A")
+    view = _pull_table(rdf.sort_values(["datetime", "seq"], ascending=False)[cols])
     max_pity = max(cfg.hard_pity.values()) if rarity == 5 else cfg.hard_pity_4
     show_df(style_result_column(view, "Result"), height=480, column_config={
         "No.": st.column_config.NumberColumn("No.", format="%d", width="small"),
@@ -1378,7 +1362,7 @@ def render_game(cfg: GameConfig, path: Path):
     k = cfg.key.lower()
     if not path.exists():
         st.warning(f"No data file for {cfg.title}: `{path}`")
-        st.info(f"Run `{PREPROCESS_HINT[cfg.key]}` to generate it, or pass `--{k}-data <file>` to this app.")
+        st.info(f"Run `python -m pipeline preprocess --games {k}` to generate it, or pass `--{k}-data <file>` to this app.")
         return
 
     df = load_data(str(path), path.stat().st_mtime, cfg.key)
@@ -1390,7 +1374,7 @@ def render_game(cfg: GameConfig, path: Path):
 
     # ---- Full-width filter panel -------------------------------------------
     with st.container(border=True, key=f"{k}_filter_panel"):
-        st.markdown('<div class="gx-side-section">Dashboard filters</div>', unsafe_allow_html=True)
+        html_md('<div class="gx-side-section">Dashboard filters</div>')
         st.caption("Historical metrics and charts follow the selected filters; current pity and hazard exposure use full available history for the selected accounts and banners.")
         account_col, banner_col, date_col = st.columns([1.15, 2.0, 2.5], gap="large")
 
@@ -1410,7 +1394,7 @@ def render_game(cfg: GameConfig, path: Path):
             st.session_state[f"{k}_last_scope"] = scope
 
         scope_df = filter_accounts(df, scope)
-        banner_options = order_banners(cfg, scope_df["banner_type"].dropna().astype(str).unique())
+        banner_options = banners_in(cfg, scope_df)
         min_d, max_d = scope_df["datetime"].min().date(), scope_df["datetime"].max().date()
 
         with banner_col:
@@ -1448,7 +1432,7 @@ def render_game(cfg: GameConfig, path: Path):
         chips=[
             f"{date_range[0]} → {date_range[1]}",
             f"{int(display_df['is_5star'].sum()):,} five-star",
-            f"{len(display_df):,} {pull_plural(cfg.pull_word).lower()}",
+            f"{len(display_df):,} {plural_lc(cfg.pull_word)}",
             wr,
         ],
     )
@@ -1512,7 +1496,6 @@ def render_game(cfg: GameConfig, path: Path):
     )
 
 
-
 # ============================================================================
 # Main app
 # ============================================================================
@@ -1532,17 +1515,14 @@ def main():
         "HSR": Path(args.hsr_data) if args.hsr_data else DEFAULT_DATA["HSR"],
     }
 
-    st.sidebar.markdown(
-        '<div class="gx-sidebar-brand">'
+    html_sidebar('<div class="gx-sidebar-brand">'
         '<div class="gx-sidebar-mark">Personal analytics</div>'
         '<div class="gx-sidebar-name">Gacha Analytics</div>'
         '<div class="gx-sidebar-caption">Pull history, pity, banner performance, and account comparisons.</div>'
         '<div class="gx-sidebar-caption">Data processed from Paimon.moe for Genshin Impact and '
         'StarRailStation for Honkai: Star Rail.</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-    st.sidebar.markdown('<div class="gx-side-section">Workspace</div>', unsafe_allow_html=True)
+        '</div>')
+    html_sidebar('<div class="gx-side-section">Workspace</div>')
     game = st.sidebar.radio(
         "Select game", list(GAMES), format_func=lambda g: GAMES[g].title,
         key="game", label_visibility="collapsed",
@@ -1550,24 +1530,17 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.caption("Each game is analysed independently. Filters apply only to the selected game.")
 
-    st.markdown(
-        '<div class="gx-appbar">'
+    html_md('<div class="gx-appbar">'
         '<div><div class="gx-app-kicker">Analytics workspace</div>'
         '<div class="gx-app-title">Gacha Analytics</div>'
         '<div class="gx-app-subtitle">Account activity, banner efficiency, and pull outcomes.</div></div>'
         '<div class="gx-app-status">PERSONAL WORKSPACE</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+        '</div>')
 
     render_game(GAMES[game], paths[game])
 
-    st.markdown(
-        '<div class="gx-footer">Gacha Analytics · data from your Paimon.moe export and StarRailStation backup · '
-        'independent, unaffiliated with HoYoverse</div>',
-        unsafe_allow_html=True,
-    )
-
+    html_md('<div class="gx-footer">Gacha Analytics · data from your Paimon.moe export and StarRailStation backup · '
+        'independent, unaffiliated with HoYoverse</div>')
 
 
 if __name__ == "__main__":
